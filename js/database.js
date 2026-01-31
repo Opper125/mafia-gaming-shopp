@@ -3,21 +3,7 @@
    JSONBin.io Integration
    ======================================== */
 
-// ========================================
-// Database Configuration
-// ========================================
-const DB_CONFIG = {
-    baseUrl: 'https://api.jsonbin.io/v3',
-    headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': CONFIG.JSONBIN_API_KEY,
-        'X-Access-Key': CONFIG.JSONBIN_ACCESS_KEY
-    }
-};
-
-// ========================================
-// Default Database Schema
-// ========================================
+// Default Schema
 const DEFAULT_SCHEMA = {
     settings: {
         siteName: 'Gaming Top-up Shop',
@@ -38,114 +24,120 @@ const DEFAULT_SCHEMA = {
     bannedUsers: []
 };
 
-// ========================================
 // Database Class
-// ========================================
 class Database {
     constructor() {
-        this.binId = CONFIG.JSONBIN_BIN_ID || Storage.get('JSONBIN_BIN_ID');
+        this.binId = Storage.get('JSONBIN_BIN_ID') || '';
         this.data = null;
-        this.lastSync = null;
+        this.apiKey = CONFIG.JSONBIN_API_KEY;
+        this.baseUrl = 'https://api.jsonbin.io/v3';
     }
 
-    // Initialize database
     async init() {
+        console.log('Initializing database...');
+        
         if (!this.binId) {
-            console.log('No bin ID found, need to create or set one');
-            return false;
+            console.log('No bin ID, creating new bin...');
+            await this.createBin();
         }
 
         try {
             await this.load();
+            console.log('Database loaded:', this.data);
             return true;
         } catch (error) {
             console.error('Database init error:', error);
+            // Try creating new bin
+            await this.createBin();
+            return true;
+        }
+    }
+
+    async createBin() {
+        try {
+            const response = await fetch(`${this.baseUrl}/b`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': this.apiKey
+                },
+                body: JSON.stringify(DEFAULT_SCHEMA)
+            });
+
+            const result = await response.json();
+            
+            if (result.metadata?.id) {
+                this.binId = result.metadata.id;
+                this.data = DEFAULT_SCHEMA;
+                Storage.set('JSONBIN_BIN_ID', this.binId);
+                console.log('Created new bin:', this.binId);
+                return this.binId;
+            }
+            
+            throw new Error('Failed to create bin');
+        } catch (error) {
+            console.error('Create bin error:', error);
+            // Use local storage as fallback
+            this.data = Storage.get('LOCAL_DATABASE') || DEFAULT_SCHEMA;
+            return null;
+        }
+    }
+
+    async load() {
+        if (!this.binId) {
+            this.data = Storage.get('LOCAL_DATABASE') || DEFAULT_SCHEMA;
+            return this.data;
+        }
+
+        try {
+            const response = await fetch(`${this.baseUrl}/b/${this.binId}/latest`, {
+                headers: {
+                    'X-Master-Key': this.apiKey
+                }
+            });
+
+            const result = await response.json();
+            this.data = result.record || DEFAULT_SCHEMA;
+            this.ensureSchema();
+            
+            // Also save locally
+            Storage.set('LOCAL_DATABASE', this.data);
+            
+            return this.data;
+        } catch (error) {
+            console.error('Load error:', error);
+            this.data = Storage.get('LOCAL_DATABASE') || DEFAULT_SCHEMA;
+            return this.data;
+        }
+    }
+
+    async save() {
+        // Always save locally first
+        Storage.set('LOCAL_DATABASE', this.data);
+
+        if (!this.binId) {
+            return true;
+        }
+
+        try {
+            this.data.settings.updatedAt = new Date().toISOString();
+
+            const response = await fetch(`${this.baseUrl}/b/${this.binId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': this.apiKey
+                },
+                body: JSON.stringify(this.data)
+            });
+
+            return response.ok;
+        } catch (error) {
+            console.error('Save error:', error);
             return false;
         }
     }
 
-    // Create new bin
-    async createBin() {
-        try {
-            const response = await fetch(`${DB_CONFIG.baseUrl}/b`, {
-                method: 'POST',
-                headers: DB_CONFIG.headers,
-                body: JSON.stringify(DEFAULT_SCHEMA)
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to create bin');
-            }
-
-            const result = await response.json();
-            this.binId = result.metadata.id;
-            this.data = DEFAULT_SCHEMA;
-
-            // Save bin ID
-            Storage.set('JSONBIN_BIN_ID', this.binId);
-            CONFIG.JSONBIN_BIN_ID = this.binId;
-
-            console.log('Created new bin:', this.binId);
-            return this.binId;
-        } catch (error) {
-            console.error('Create bin error:', error);
-            throw error;
-        }
-    }
-
-    // Load data from bin
-    async load() {
-        try {
-            const response = await fetch(`${DB_CONFIG.baseUrl}/b/${this.binId}/latest`, {
-                headers: DB_CONFIG.headers
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to load data');
-            }
-
-            const result = await response.json();
-            this.data = result.record;
-            this.lastSync = new Date();
-
-            // Ensure all required fields exist
-            this.ensureSchema();
-
-            return this.data;
-        } catch (error) {
-            console.error('Load error:', error);
-            throw error;
-        }
-    }
-
-    // Save data to bin
-    async save() {
-        try {
-            if (!this.binId || !this.data) {
-                throw new Error('No bin ID or data');
-            }
-
-            this.data.settings.updatedAt = new Date().toISOString();
-
-            const response = await fetch(`${DB_CONFIG.baseUrl}/b/${this.binId}`, {
-                method: 'PUT',
-                headers: DB_CONFIG.headers,
-                body: JSON.stringify(this.data)
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to save data');
-            }
-
-            this.lastSync = new Date();
-            return true;
-        } catch (error) {
-            console.error('Save error:', error);
-            throw error;
-        }
-    }
-
-    // Ensure all schema fields exist
     ensureSchema() {
         if (!this.data) {
             this.data = { ...DEFAULT_SCHEMA };
@@ -159,16 +151,7 @@ class Database {
         });
     }
 
-    // Set bin ID manually
-    setBinId(binId) {
-        this.binId = binId;
-        Storage.set('JSONBIN_BIN_ID', binId);
-        CONFIG.JSONBIN_BIN_ID = binId;
-    }
-
-    // ========================================
-    // Settings Operations
-    // ========================================
+    // Settings
     getSettings() {
         return this.data?.settings || DEFAULT_SCHEMA.settings;
     }
@@ -179,9 +162,7 @@ class Database {
         return this.data.settings;
     }
 
-    // ========================================
-    // Users Operations
-    // ========================================
+    // Users
     getUsers() {
         return this.data?.users || [];
     }
@@ -191,8 +172,8 @@ class Database {
     }
 
     async addUser(userData) {
-        const existingUser = this.getUser(userData.telegramId);
-        if (existingUser) {
+        const existing = this.getUser(userData.telegramId);
+        if (existing) {
             return this.updateUser(userData.telegramId, userData);
         }
 
@@ -200,10 +181,10 @@ class Database {
             id: generateId('user_'),
             telegramId: String(userData.telegramId),
             username: userData.username || '',
-            firstName: userData.first_name || userData.firstName || '',
-            lastName: userData.last_name || userData.lastName || '',
-            photoUrl: userData.photo_url || userData.photoUrl || '',
-            isPremium: userData.is_premium || userData.isPremium || false,
+            firstName: userData.firstName || userData.first_name || '',
+            lastName: userData.lastName || userData.last_name || '',
+            photoUrl: userData.photoUrl || userData.photo_url || '',
+            isPremium: userData.isPremium || userData.is_premium || false,
             balance: 0,
             totalSpent: 0,
             totalOrders: 0,
@@ -240,31 +221,21 @@ class Database {
         const user = this.getUser(telegramId);
         if (!user) return null;
 
-        let newBalance = user.balance;
-        if (operation === 'add') {
-            newBalance += amount;
-        } else if (operation === 'subtract') {
-            newBalance -= amount;
-        } else if (operation === 'set') {
-            newBalance = amount;
-        }
+        let newBalance = user.balance || 0;
+        if (operation === 'add') newBalance += amount;
+        else if (operation === 'subtract') newBalance -= amount;
+        else if (operation === 'set') newBalance = amount;
 
         return this.updateUser(telegramId, { balance: Math.max(0, newBalance) });
     }
 
-    // ========================================
-    // Categories Operations
-    // ========================================
+    // Categories
     getCategories() {
         return this.data?.categories || [];
     }
 
     getCategory(categoryId) {
         return this.getCategories().find(c => c.id === categoryId);
-    }
-
-    getCategoryByName(name) {
-        return this.getCategories().find(c => c.name.toLowerCase() === name.toLowerCase());
     }
 
     async addCategory(categoryData) {
@@ -275,8 +246,7 @@ class Database {
             flag: categoryData.flag || '',
             hasDiscount: categoryData.hasDiscount || false,
             totalSold: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            createdAt: new Date().toISOString()
         };
 
         this.data.categories.push(newCategory);
@@ -288,35 +258,20 @@ class Database {
         const index = this.data.categories.findIndex(c => c.id === categoryId);
         if (index === -1) return null;
 
-        this.data.categories[index] = {
-            ...this.data.categories[index],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
+        this.data.categories[index] = { ...this.data.categories[index], ...updates };
         await this.save();
         return this.data.categories[index];
     }
 
     async deleteCategory(categoryId) {
         this.data.categories = this.data.categories.filter(c => c.id !== categoryId);
-        // Also delete related products and input tables
         this.data.products = this.data.products.filter(p => p.categoryId !== categoryId);
         this.data.inputTables = this.data.inputTables.filter(i => i.categoryId !== categoryId);
         await this.save();
         return true;
     }
 
-    async incrementCategorySold(categoryId) {
-        const category = this.getCategory(categoryId);
-        if (category) {
-            await this.updateCategory(categoryId, { totalSold: (category.totalSold || 0) + 1 });
-        }
-    }
-
-    // ========================================
-    // Products Operations
-    // ========================================
+    // Products
     getProducts() {
         return this.data?.products || [];
     }
@@ -341,8 +296,7 @@ class Database {
             deliveryType: productData.deliveryType || 'instant',
             deliveryTime: productData.deliveryTime || '',
             totalSold: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            createdAt: new Date().toISOString()
         };
 
         this.data.products.push(newProduct);
@@ -354,12 +308,7 @@ class Database {
         const index = this.data.products.findIndex(p => p.id === productId);
         if (index === -1) return null;
 
-        this.data.products[index] = {
-            ...this.data.products[index],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
+        this.data.products[index] = { ...this.data.products[index], ...updates };
         await this.save();
         return this.data.products[index];
     }
@@ -370,9 +319,7 @@ class Database {
         return true;
     }
 
-    // ========================================
-    // Input Tables Operations
-    // ========================================
+    // Input Tables
     getInputTables() {
         return this.data?.inputTables || [];
     }
@@ -387,7 +334,6 @@ class Database {
             categoryId: inputData.categoryId,
             name: inputData.name,
             placeholder: inputData.placeholder || '',
-            required: true,
             createdAt: new Date().toISOString()
         };
 
@@ -400,11 +346,7 @@ class Database {
         const index = this.data.inputTables.findIndex(i => i.id === inputId);
         if (index === -1) return null;
 
-        this.data.inputTables[index] = {
-            ...this.data.inputTables[index],
-            ...updates
-        };
-
+        this.data.inputTables[index] = { ...this.data.inputTables[index], ...updates };
         await this.save();
         return this.data.inputTables[index];
     }
@@ -415,18 +357,14 @@ class Database {
         return true;
     }
 
-    // ========================================
-    // Banners Operations
-    // ========================================
+    // Banners
     getBannersType1() {
         return this.data?.bannersType1 || [];
     }
 
     getBannersType2(categoryId = null) {
         const banners = this.data?.bannersType2 || [];
-        if (categoryId) {
-            return banners.filter(b => b.categoryId === categoryId);
-        }
+        if (categoryId) return banners.filter(b => b.categoryId === categoryId);
         return banners;
     }
 
@@ -466,9 +404,7 @@ class Database {
         return true;
     }
 
-    // ========================================
-    // Payment Methods Operations
-    // ========================================
+    // Payment Methods
     getPaymentMethods() {
         return this.data?.paymentMethods || [];
     }
@@ -497,11 +433,7 @@ class Database {
         const index = this.data.paymentMethods.findIndex(p => p.id === paymentId);
         if (index === -1) return null;
 
-        this.data.paymentMethods[index] = {
-            ...this.data.paymentMethods[index],
-            ...updates
-        };
-
+        this.data.paymentMethods[index] = { ...this.data.paymentMethods[index], ...updates };
         await this.save();
         return this.data.paymentMethods[index];
     }
@@ -512,9 +444,7 @@ class Database {
         return true;
     }
 
-    // ========================================
-    // Orders Operations
-    // ========================================
+    // Orders
     getOrders() {
         return this.data?.orders || [];
     }
@@ -533,8 +463,7 @@ class Database {
 
     async addOrder(orderData) {
         const newOrder = {
-            id: orderData.orderId || generateOrderId(),
-            oderId: orderData.orderId || generateOrderId(),
+            id: generateOrderId(),
             userId: String(orderData.userId),
             userInfo: orderData.userInfo,
             productId: orderData.productId,
@@ -544,8 +473,7 @@ class Database {
             amount: parseFloat(orderData.amount),
             currency: orderData.currency || 'MMK',
             status: 'pending',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            createdAt: new Date().toISOString()
         };
 
         this.data.orders.push(newOrder);
@@ -557,12 +485,7 @@ class Database {
         const index = this.data.orders.findIndex(o => o.id === orderId);
         if (index === -1) return null;
 
-        this.data.orders[index] = {
-            ...this.data.orders[index],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
+        this.data.orders[index] = { ...this.data.orders[index], ...updates };
         await this.save();
         return this.data.orders[index];
     }
@@ -570,7 +493,6 @@ class Database {
     async approveOrder(orderId) {
         const order = await this.updateOrder(orderId, { status: 'approved' });
         if (order) {
-            // Update user stats
             const user = this.getUser(order.userId);
             if (user) {
                 await this.updateUser(order.userId, {
@@ -578,13 +500,12 @@ class Database {
                     totalSpent: (user.totalSpent || 0) + order.amount
                 });
             }
-            // Update category sold count
-            await this.incrementCategorySold(order.categoryId);
-            // Update product sold count
-            const product = this.getProduct(order.productId);
-            if (product) {
-                await this.updateProduct(order.productId, { totalSold: (product.totalSold || 0) + 1 });
+            // Update category sold
+            const catIndex = this.data.categories.findIndex(c => c.id === order.categoryId);
+            if (catIndex !== -1) {
+                this.data.categories[catIndex].totalSold = (this.data.categories[catIndex].totalSold || 0) + 1;
             }
+            await this.save();
         }
         return order;
     }
@@ -592,9 +513,7 @@ class Database {
     async rejectOrder(orderId) {
         const order = await this.updateOrder(orderId, { status: 'rejected' });
         if (order) {
-            // Refund the user
             await this.updateUserBalance(order.userId, order.amount, 'add');
-            // Update user stats
             const user = this.getUser(order.userId);
             if (user) {
                 await this.updateUser(order.userId, {
@@ -605,9 +524,7 @@ class Database {
         return order;
     }
 
-    // ========================================
-    // Topup Requests Operations
-    // ========================================
+    // Topup Requests
     getTopupRequests() {
         return this.data?.topupRequests || [];
     }
@@ -634,8 +551,7 @@ class Database {
             amount: parseFloat(requestData.amount),
             receiptUrl: requestData.receiptUrl,
             status: 'pending',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            createdAt: new Date().toISOString()
         };
 
         this.data.topupRequests.push(newRequest);
@@ -647,10 +563,8 @@ class Database {
         const request = this.getTopupRequest(requestId);
         if (!request) return null;
 
-        // Update request status
-        const updatedRequest = await this.updateTopupRequest(requestId, { status: 'approved' });
-
-        // Add balance to user
+        request.status = 'approved';
+        
         const user = this.getUser(request.userId);
         if (user) {
             await this.updateUser(request.userId, {
@@ -660,30 +574,20 @@ class Database {
             });
         }
 
-        return updatedRequest;
+        await this.save();
+        return request;
     }
 
     async rejectTopupRequest(requestId) {
-        return this.updateTopupRequest(requestId, { status: 'rejected' });
-    }
+        const request = this.getTopupRequest(requestId);
+        if (!request) return null;
 
-    async updateTopupRequest(requestId, updates) {
-        const index = this.data.topupRequests.findIndex(t => t.id === requestId);
-        if (index === -1) return null;
-
-        this.data.topupRequests[index] = {
-            ...this.data.topupRequests[index],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
+        request.status = 'rejected';
         await this.save();
-        return this.data.topupRequests[index];
+        return request;
     }
 
-    // ========================================
-    // Banned Users Operations
-    // ========================================
+    // Banned Users
     getBannedUsers() {
         return this.data?.bannedUsers || [];
     }
@@ -715,9 +619,7 @@ class Database {
         return true;
     }
 
-    // ========================================
-    // Statistics
-    // ========================================
+    // Stats
     getStats() {
         const users = this.getUsers();
         const orders = this.getOrders();
@@ -725,27 +627,20 @@ class Database {
 
         return {
             totalUsers: users.length,
-            premiumUsers: users.filter(u => u.isPremium).length,
             totalOrders: orders.length,
             pendingOrders: orders.filter(o => o.status === 'pending').length,
             approvedOrders: orders.filter(o => o.status === 'approved').length,
-            rejectedOrders: orders.filter(o => o.status === 'rejected').length,
-            totalRevenue: orders
-                .filter(o => o.status === 'approved')
-                .reduce((sum, o) => sum + o.amount, 0),
+            totalRevenue: orders.filter(o => o.status === 'approved').reduce((sum, o) => sum + o.amount, 0),
             pendingTopups: topups.filter(t => t.status === 'pending').length,
-            totalDeposits: topups
-                .filter(t => t.status === 'approved')
-                .reduce((sum, t) => sum + t.amount, 0),
             bannedUsers: this.getBannedUsers().length
         };
     }
 }
 
-// Create database instance
+// Create instance
 const db = new Database();
 
-// Export
+// Make global
 window.Database = Database;
 window.db = db;
 window.DEFAULT_SCHEMA = DEFAULT_SCHEMA;
