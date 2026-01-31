@@ -1,6 +1,5 @@
 /* ========================================
    Gaming Top-up Shop - Admin Panel
-   Admin Dashboard & Management
    ======================================== */
 
 // ========================================
@@ -17,103 +16,114 @@ const AdminState = {
 // Admin Initialization
 // ========================================
 async function initAdmin() {
-    console.log('Initializing admin panel...');
+    console.log('=== Initializing Admin Panel ===');
 
-    // Check if running in Telegram
-    if (!telegramManager.init() || !telegramManager.isInTelegram()) {
+    // Initialize Telegram
+    const telegramReady = TelegramManager.init();
+    console.log('Telegram ready:', telegramReady);
+
+    // Check if in Telegram
+    if (!TelegramManager.isInTelegram()) {
+        console.log('Not in Telegram');
         showAdminAccessDenied();
         return;
     }
 
-    const user = telegramManager.getUser();
+    // Get user
+    const user = TelegramManager.getUser();
+    console.log('Telegram User:', user);
+
     if (!user) {
+        console.log('No user found');
         showAdminAccessDenied();
         return;
     }
 
-    // Check if user is admin
+    // Check if admin
+    console.log('User ID:', user.id);
+    console.log('Admin ID:', CONFIG.ADMIN_TELEGRAM_ID);
+    console.log('Is Admin:', isAdmin(user.id));
+
     if (!isAdmin(user.id)) {
+        console.log('User is not admin');
         showAdminAccessDenied();
         return;
     }
 
-    // Show authentication screen
+    // Show auth screen
     showAdminAuth();
 }
 
-// Show access denied
 function showAdminAccessDenied() {
-    document.getElementById('admin-auth').classList.add('hidden');
-    document.getElementById('admin-dashboard').classList.add('hidden');
-    document.getElementById('access-denied').classList.remove('hidden');
+    const authEl = document.getElementById('admin-auth');
+    const dashboardEl = document.getElementById('admin-dashboard');
+    const deniedEl = document.getElementById('access-denied');
+
+    if (authEl) authEl.classList.add('hidden');
+    if (dashboardEl) dashboardEl.classList.add('hidden');
+    if (deniedEl) deniedEl.classList.remove('hidden');
 }
 
-// Show authentication screen
 function showAdminAuth() {
-    document.getElementById('access-denied').classList.add('hidden');
-    document.getElementById('admin-dashboard').classList.add('hidden');
-    document.getElementById('admin-auth').classList.remove('hidden');
+    const authEl = document.getElementById('admin-auth');
+    const dashboardEl = document.getElementById('admin-dashboard');
+    const deniedEl = document.getElementById('access-denied');
+
+    if (deniedEl) deniedEl.classList.add('hidden');
+    if (dashboardEl) dashboardEl.classList.add('hidden');
+    if (authEl) authEl.classList.remove('hidden');
 }
 
-// Authenticate admin
 async function authenticateAdmin() {
-    const password = document.getElementById('admin-password').value.trim();
+    const passwordInput = document.getElementById('admin-password');
+    const password = passwordInput?.value?.trim();
 
     if (!password) {
-        Toast.warning('Please enter your 2FA password');
+        Toast.warning('Please enter password');
         return;
     }
 
     Loading.show('Authenticating...');
 
-    // In production, this should verify against Telegram 2FA
-    // For now, we'll use a simple verification with the bot
     try {
-        // Store password hash for session
-        const passwordHash = btoa(password);
-        Session.set('admin_auth', passwordHash);
-
         // Initialize database
-        const binId = Storage.get('JSONBIN_BIN_ID');
-        if (binId) {
-            db.setBinId(binId);
-            await db.init();
-        }
+        await db.init();
 
         AdminState.isAuthenticated = true;
-        Loading.hide();
+        Session.set('admin_auth', true);
 
-        // Show dashboard
+        Loading.hide();
         showAdminDashboard();
 
     } catch (error) {
         Loading.hide();
         console.error('Auth error:', error);
         Toast.error('Authentication failed');
-        telegramManager.haptic('notification', 'error');
     }
 }
 
-// Show admin dashboard
 async function showAdminDashboard() {
-    document.getElementById('admin-auth').classList.add('hidden');
-    document.getElementById('access-denied').classList.add('hidden');
-    document.getElementById('admin-dashboard').classList.remove('hidden');
+    const authEl = document.getElementById('admin-auth');
+    const dashboardEl = document.getElementById('admin-dashboard');
+    const deniedEl = document.getElementById('access-denied');
+
+    if (authEl) authEl.classList.add('hidden');
+    if (deniedEl) deniedEl.classList.add('hidden');
+    if (dashboardEl) dashboardEl.classList.remove('hidden');
 
     // Initialize navigation
     initAdminNavigation();
 
-    // Load dashboard data
+    // Load dashboard
     await loadDashboardData();
 
-    telegramManager.haptic('notification', 'success');
+    TelegramManager.haptic('notification', 'success');
+    console.log('Admin dashboard loaded');
 }
 
-// Initialize admin navigation
 function initAdminNavigation() {
-    const navBtns = document.querySelectorAll('.admin-nav .nav-btn');
-
-    navBtns.forEach(btn => {
+    // Section navigation
+    document.querySelectorAll('.admin-nav .nav-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const section = btn.dataset.section;
             switchSection(section);
@@ -123,24 +133,96 @@ function initAdminNavigation() {
     // Banner type tabs
     document.querySelectorAll('.banner-tabs .tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const type = btn.dataset.type;
-            switchBannerType(type);
+            switchBannerType(btn.dataset.type);
         });
     });
 
-    // Delivery type change
+    // Delivery type change handler
     const deliveryType = document.getElementById('delivery-type');
     if (deliveryType) {
         deliveryType.addEventListener('change', () => {
             const customGroup = document.getElementById('custom-time-group');
-            customGroup.classList.toggle('hidden', deliveryType.value === 'instant');
+            if (customGroup) {
+                customGroup.classList.toggle('hidden', deliveryType.value === 'instant');
+            }
+        });
+    }
+
+    // File preview handlers
+    setupFilePreviewHandlers();
+}
+
+function setupFilePreviewHandlers() {
+    // Category icon
+    const categoryIconInput = document.getElementById('category-icon-file');
+    if (categoryIconInput) {
+        categoryIconInput.addEventListener('change', function() {
+            if (this.files[0]) {
+                fileToBase64(this.files[0]).then(base64 => {
+                    const preview = document.getElementById('category-icon-preview');
+                    if (preview) preview.src = base64;
+                });
+            }
+        });
+    }
+
+    // Product icon
+    const productIconInput = document.getElementById('product-icon-file');
+    if (productIconInput) {
+        productIconInput.addEventListener('change', function() {
+            if (this.files[0]) {
+                fileToBase64(this.files[0]).then(base64 => {
+                    const preview = document.getElementById('product-icon-preview');
+                    if (preview) preview.src = base64;
+                });
+            }
+        });
+    }
+
+    // Payment icon
+    const paymentIconInput = document.getElementById('payment-icon-file');
+    if (paymentIconInput) {
+        paymentIconInput.addEventListener('change', function() {
+            if (this.files[0]) {
+                fileToBase64(this.files[0]).then(base64 => {
+                    const preview = document.getElementById('payment-icon-preview');
+                    if (preview) preview.src = base64;
+                });
+            }
+        });
+    }
+
+    // Banner
+    const bannerInput = document.getElementById('banner-file');
+    if (bannerInput) {
+        bannerInput.addEventListener('change', function() {
+            if (this.files[0]) {
+                fileToBase64(this.files[0]).then(base64 => {
+                    const preview = document.getElementById('banner-preview');
+                    if (preview) preview.src = base64;
+                });
+            }
+        });
+    }
+
+    // Broadcast image
+    const broadcastInput = document.getElementById('broadcast-image-file');
+    if (broadcastInput) {
+        broadcastInput.addEventListener('change', function() {
+            if (this.files[0]) {
+                fileToBase64(this.files[0]).then(base64 => {
+                    const preview = document.getElementById('broadcast-image-preview');
+                    if (preview) preview.src = base64;
+                });
+            }
         });
     }
 }
 
-// Switch section
 function switchSection(section) {
-    // Update nav buttons
+    console.log('Switching to section:', section);
+
+    // Update nav
     document.querySelectorAll('.admin-nav .nav-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.section === section);
     });
@@ -151,17 +233,19 @@ function switchSection(section) {
     });
 
     // Show selected section
-    document.getElementById(`${section}-section`).classList.remove('hidden');
+    const sectionEl = document.getElementById(`${section}-section`);
+    if (sectionEl) {
+        sectionEl.classList.remove('hidden');
+    }
 
     AdminState.currentSection = section;
 
     // Load section data
     loadSectionData(section);
 
-    telegramManager.haptic('selection');
+    TelegramManager.haptic('selection');
 }
 
-// Load section data
 async function loadSectionData(section) {
     switch (section) {
         case 'dashboard':
@@ -192,7 +276,7 @@ async function loadSectionData(section) {
 }
 
 // ========================================
-// Dashboard Section
+// Dashboard
 // ========================================
 async function loadDashboardData() {
     try {
@@ -200,22 +284,26 @@ async function loadDashboardData() {
 
         const stats = db.getStats();
 
-        // Update stats cards
-        document.getElementById('total-users').textContent = formatNumber(stats.totalUsers);
-        document.getElementById('total-orders-stat').textContent = formatNumber(stats.totalOrders);
-        document.getElementById('total-revenue').textContent = formatNumber(stats.totalRevenue);
-        document.getElementById('pending-orders').textContent = formatNumber(stats.pendingOrders);
+        // Update stats
+        const totalUsersEl = document.getElementById('total-users');
+        const totalOrdersEl = document.getElementById('total-orders-stat');
+        const totalRevenueEl = document.getElementById('total-revenue');
+        const pendingOrdersEl = document.getElementById('pending-orders');
 
-        // Update database info
-        document.getElementById('jsonbin-id').textContent = db.binId || 'Not configured';
-        document.getElementById('collection-id').textContent = CONFIG.COLLECTION_ID || 'N/A';
-        document.getElementById('schema-doc-id').textContent = CONFIG.SCHEMA_DOC_ID || 'N/A';
+        if (totalUsersEl) totalUsersEl.textContent = formatNumber(stats.totalUsers);
+        if (totalOrdersEl) totalOrdersEl.textContent = formatNumber(stats.totalOrders);
+        if (totalRevenueEl) totalRevenueEl.textContent = formatNumber(stats.totalRevenue);
+        if (pendingOrdersEl) pendingOrdersEl.textContent = formatNumber(stats.pendingOrders);
 
-        // Load recent orders
+        // Database info
+        const jsonbinIdEl = document.getElementById('jsonbin-id');
+        if (jsonbinIdEl) jsonbinIdEl.textContent = db.binId || 'Not configured';
+
+        // Recent orders
         loadRecentOrders();
 
-        // Load pending topups
-        loadPendingTopups();
+        // Pending topups
+        loadPendingTopupsDashboard();
 
     } catch (error) {
         console.error('Dashboard load error:', error);
@@ -226,8 +314,10 @@ function loadRecentOrders() {
     const orders = db.getOrders().slice(-5).reverse();
     const list = document.getElementById('recent-orders-list');
 
+    if (!list) return;
+
     if (!orders || orders.length === 0) {
-        list.innerHTML = '<p class="text-center" style="color: var(--text-tertiary);">No recent orders</p>';
+        list.innerHTML = '<p style="color: var(--text-tertiary); text-align: center;">No recent orders</p>';
         return;
     }
 
@@ -237,22 +327,24 @@ function loadRecentOrders() {
             <div class="recent-item">
                 <img src="${getAvatarUrl(user)}" alt="User" class="recent-item-avatar">
                 <div class="recent-item-info">
-                    <h4>${user?.firstName || 'User'} ${user?.lastName || ''}</h4>
+                    <h4>${user?.firstName || 'User'}</h4>
                     <p>${order.productInfo?.name || 'Product'}</p>
                 </div>
                 <span class="recent-item-status ${order.status}">${order.status}</span>
-                <span class="recent-item-amount">${formatCurrency(order.amount, order.currency)}</span>
+                <span class="recent-item-amount">${formatCurrency(order.amount)}</span>
             </div>
         `;
     }).join('');
 }
 
-function loadPendingTopups() {
+function loadPendingTopupsDashboard() {
     const topups = db.getPendingTopupRequests();
     const list = document.getElementById('pending-topups-list');
 
+    if (!list) return;
+
     if (!topups || topups.length === 0) {
-        list.innerHTML = '<p class="text-center" style="color: var(--text-tertiary);">No pending top-ups</p>';
+        list.innerHTML = '<p style="color: var(--text-tertiary); text-align: center;">No pending top-ups</p>';
         return;
     }
 
@@ -262,7 +354,7 @@ function loadPendingTopups() {
             <div class="recent-item">
                 <img src="${getAvatarUrl(user)}" alt="User" class="recent-item-avatar">
                 <div class="recent-item-info">
-                    <h4>${user?.firstName || 'User'} ${user?.lastName || ''}</h4>
+                    <h4>${user?.firstName || 'User'}</h4>
                     <p>${topup.paymentInfo?.name || 'Payment'}</p>
                 </div>
                 <span class="recent-item-status pending">pending</span>
@@ -273,12 +365,14 @@ function loadPendingTopups() {
 }
 
 // ========================================
-// Users Section
+// Users
 // ========================================
 function loadUsersData(filter = 'all') {
     const users = db.getUsers();
     const bannedIds = db.getBannedUsers().map(b => b.telegramId);
     const list = document.getElementById('users-list');
+
+    if (!list) return;
 
     let filteredUsers = users;
 
@@ -293,7 +387,6 @@ function loadUsersData(filter = 'all') {
             <div class="empty-state">
                 <div class="empty-state-icon"><i class="fas fa-users"></i></div>
                 <h3>No Users</h3>
-                <p>Users will appear here</p>
             </div>
         `;
         return;
@@ -306,18 +399,18 @@ function loadUsersData(filter = 'all') {
                 <img src="${getAvatarUrl(user)}" alt="User" class="user-card-avatar">
                 <div class="user-card-info">
                     <h4>
-                        ${user.firstName} ${user.lastName || ''}
+                        ${user.firstName || 'User'} ${user.lastName || ''}
                         ${user.isPremium ? '<span class="premium-badge"><i class="fas fa-star"></i></span>' : ''}
-                        ${isBanned ? '<span style="color: var(--accent-red); margin-left: 4px;"><i class="fas fa-ban"></i></span>' : ''}
+                        ${isBanned ? '<span style="color: var(--accent-red);"><i class="fas fa-ban"></i></span>' : ''}
                     </h4>
                     <p>@${user.username || 'N/A'} · ID: ${user.telegramId}</p>
                 </div>
                 <div class="user-card-balance">
-                    <span>${formatCurrency(user.balance)}</span>
+                    <span>${formatCurrency(user.balance || 0)}</span>
                     <small>${user.totalOrders || 0} orders</small>
                 </div>
                 <div class="user-card-actions">
-                    <button onclick="event.stopPropagation(); ${isBanned ? `unbanUser('${user.telegramId}')` : `banUser('${user.telegramId}')`}" class="${isBanned ? '' : 'danger'}">
+                    <button onclick="event.stopPropagation(); ${isBanned ? `unbanUser('${user.telegramId}')` : `banUser('${user.telegramId}')`}">
                         <i class="fas fa-${isBanned ? 'unlock' : 'ban'}"></i>
                     </button>
                 </div>
@@ -325,26 +418,25 @@ function loadUsersData(filter = 'all') {
         `;
     }).join('');
 
-    // Add filter handlers
+    // Filter handlers
     document.querySelectorAll('#users-section .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.onclick = () => {
             document.querySelectorAll('#users-section .filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             loadUsersData(btn.dataset.filter);
-        });
+        };
     });
 
     // Search handler
     const searchInput = document.getElementById('user-search');
     if (searchInput) {
-        searchInput.addEventListener('input', debounce((e) => {
+        searchInput.oninput = debounce((e) => {
             const query = e.target.value.toLowerCase();
-            const userCards = document.querySelectorAll('.user-card');
-            userCards.forEach(card => {
+            document.querySelectorAll('.user-card').forEach(card => {
                 const text = card.textContent.toLowerCase();
                 card.style.display = text.includes(query) ? 'flex' : 'none';
             });
-        }, 300));
+        }, 300);
     }
 }
 
@@ -358,18 +450,20 @@ function openUserDetail(telegramId) {
     const modal = document.getElementById('user-detail-modal');
     const content = document.getElementById('user-detail-content');
 
+    if (!modal || !content) return;
+
     content.innerHTML = `
         <div class="user-detail-header">
             <img src="${getAvatarUrl(user)}" alt="User">
             <div class="user-detail-header-info">
-                <h3>${user.firstName} ${user.lastName || ''} ${user.isPremium ? '⭐' : ''}</h3>
+                <h3>${user.firstName || 'User'} ${user.lastName || ''} ${user.isPremium ? '⭐' : ''}</h3>
                 <p>@${user.username || 'N/A'} · ID: ${user.telegramId}</p>
             </div>
         </div>
 
         <div class="user-detail-stats">
             <div class="user-detail-stat">
-                <span>${formatCurrency(user.balance)}</span>
+                <span>${formatCurrency(user.balance || 0)}</span>
                 <label>Balance</label>
             </div>
             <div class="user-detail-stat">
@@ -382,21 +476,6 @@ function openUserDetail(telegramId) {
             </div>
         </div>
 
-        <div class="user-detail-stats">
-            <div class="user-detail-stat">
-                <span>${user.approvedOrders || 0}</span>
-                <label>Approved</label>
-            </div>
-            <div class="user-detail-stat">
-                <span>${user.rejectedOrders || 0}</span>
-                <label>Rejected</label>
-            </div>
-            <div class="user-detail-stat">
-                <span>${user.depositCount || 0}</span>
-                <label>Deposits</label>
-            </div>
-        </div>
-
         <div class="user-detail-section">
             <h4><i class="fas fa-shopping-cart"></i> Recent Orders</h4>
             <div class="user-detail-list">
@@ -406,7 +485,7 @@ function openUserDetail(telegramId) {
                             <h5>${order.productInfo?.name || 'Product'}</h5>
                             <p>${formatRelativeTime(order.createdAt)} · ${order.status}</p>
                         </div>
-                        <span class="user-detail-list-item-amount negative">-${formatCurrency(order.amount, order.currency)}</span>
+                        <span class="user-detail-list-item-amount negative">-${formatCurrency(order.amount)}</span>
                     </div>
                 `).join('') || '<p style="color: var(--text-tertiary);">No orders</p>'}
             </div>
@@ -428,34 +507,28 @@ function openUserDetail(telegramId) {
                 `).join('') || '<p style="color: var(--text-tertiary);">No deposits</p>'}
             </div>
         </div>
-
-        <div style="margin-top: var(--spacing-lg);">
-            <p style="font-size: 12px; color: var(--text-tertiary);">
-                Member since: ${formatDate(user.createdAt, 'long')}
-            </p>
-        </div>
     `;
 
     modal.classList.remove('hidden');
-    telegramManager.haptic('impact', 'light');
 }
 
 function closeUserDetailModal() {
-    document.getElementById('user-detail-modal').classList.add('hidden');
+    const modal = document.getElementById('user-detail-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 async function banUser(telegramId) {
-    const confirmed = await telegramManager.showConfirm('Are you sure you want to ban this user?');
+    const confirmed = await TelegramManager.showConfirm('Ban this user?');
     if (!confirmed) return;
 
     Loading.show('Banning user...');
 
     try {
         await db.banUser(telegramId, 'Banned by admin');
-        await telegramBot.sendUserNotification(telegramId, '❌ Your account has been banned. Please contact support.');
+        TelegramBot.sendUserNotification(telegramId, '❌ Your account has been banned.');
 
         Loading.hide();
-        Toast.success('User banned successfully');
+        Toast.success('User banned');
         loadUsersData();
     } catch (error) {
         Loading.hide();
@@ -464,17 +537,17 @@ async function banUser(telegramId) {
 }
 
 async function unbanUser(telegramId) {
-    const confirmed = await telegramManager.showConfirm('Are you sure you want to unban this user?');
+    const confirmed = await TelegramManager.showConfirm('Unban this user?');
     if (!confirmed) return;
 
     Loading.show('Unbanning user...');
 
     try {
         await db.unbanUser(telegramId);
-        await telegramBot.sendUserNotification(telegramId, '✅ Your account has been unbanned. You can now use the service again.');
+        TelegramBot.sendUserNotification(telegramId, '✅ Your account has been unbanned.');
 
         Loading.hide();
-        Toast.success('User unbanned successfully');
+        Toast.success('User unbanned');
         loadUsersData();
     } catch (error) {
         Loading.hide();
@@ -482,62 +555,64 @@ async function unbanUser(telegramId) {
     }
 }
 
-// Broadcast Modal
+// Broadcast
 function openBroadcastModal() {
-    document.getElementById('broadcast-modal').classList.remove('hidden');
-    document.getElementById('broadcast-message').value = '';
-    document.getElementById('broadcast-image-preview').src = '';
+    const modal = document.getElementById('broadcast-modal');
+    if (modal) modal.classList.remove('hidden');
 }
 
 function closeBroadcastModal() {
-    document.getElementById('broadcast-modal').classList.add('hidden');
+    const modal = document.getElementById('broadcast-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 async function sendBroadcast() {
-    const message = document.getElementById('broadcast-message').value.trim();
-    const imageFile = document.getElementById('broadcast-image-file').files[0];
+    const messageEl = document.getElementById('broadcast-message');
+    const message = messageEl?.value?.trim();
+    const imageFile = document.getElementById('broadcast-image-file')?.files[0];
 
     if (!message) {
         Toast.warning('Please enter a message');
         return;
     }
 
-    const confirmed = await telegramManager.showConfirm('Send this message to all users?');
+    const confirmed = await TelegramManager.showConfirm('Send to all users?');
     if (!confirmed) return;
 
-    Loading.show('Broadcasting message...');
+    Loading.show('Broadcasting...');
 
     try {
         const users = db.getUsers();
-        let imageUrl = null;
+        let successCount = 0;
 
-        if (imageFile) {
-            imageUrl = await fileToBase64(imageFile);
+        for (const user of users) {
+            try {
+                await TelegramBot.sendMessage(user.telegramId, message);
+                successCount++;
+                await sleep(50);
+            } catch (e) {}
         }
-
-        const results = await telegramBot.broadcastMessage(users, message, imageUrl);
 
         Loading.hide();
         closeBroadcastModal();
-
-        Toast.success(`Broadcast sent! Success: ${results.success}, Failed: ${results.failed}`);
+        Toast.success(`Sent to ${successCount} users`);
 
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to send broadcast');
-        console.error('Broadcast error:', error);
+        Toast.error('Broadcast failed');
     }
 }
 
 // ========================================
-// Orders Section
+// Orders
 // ========================================
 function loadOrdersData(filter = 'pending') {
     const orders = db.getOrders();
     const list = document.getElementById('orders-admin-list');
 
-    let filteredOrders = orders;
+    if (!list) return;
 
+    let filteredOrders = orders;
     if (filter !== 'all') {
         filteredOrders = orders.filter(o => o.status === filter);
     }
@@ -549,7 +624,6 @@ function loadOrdersData(filter = 'pending') {
             <div class="empty-state">
                 <div class="empty-state-icon"><i class="fas fa-shopping-cart"></i></div>
                 <h3>No Orders</h3>
-                <p>Orders will appear here</p>
             </div>
         `;
         return;
@@ -567,15 +641,15 @@ function loadOrdersData(filter = 'pending') {
                     <div class="order-admin-user">
                         <img src="${getAvatarUrl(user)}" alt="User">
                         <div class="order-admin-user-info">
-                            <h4>${user?.firstName || 'User'} ${user?.lastName || ''}</h4>
-                            <p>@${user?.username || 'N/A'} · ID: ${order.userId}</p>
+                            <h4>${user?.firstName || 'User'}</h4>
+                            <p>@${user?.username || 'N/A'}</p>
                         </div>
                     </div>
                     <div class="order-admin-product">
                         <img src="${order.productInfo?.iconUrl || ''}" alt="Product">
                         <div class="order-admin-product-info">
                             <h5>${order.productInfo?.name || 'Product'}</h5>
-                            <p>${formatCurrency(order.amount, order.currency)}</p>
+                            <p>${formatCurrency(order.amount)}</p>
                         </div>
                     </div>
                     ${Object.keys(order.inputValues || {}).length > 0 ? `
@@ -595,8 +669,8 @@ function loadOrdersData(filter = 'pending') {
                             </button>
                         </div>
                     ` : `
-                        <div class="order-admin-actions">
-                            <span class="order-status ${order.status}">${order.status}</span>
+                        <div style="text-align: center; padding: 10px;">
+                            <span class="order-status ${order.status}" style="padding: 8px 16px; border-radius: 20px;">${order.status.toUpperCase()}</span>
                         </div>
                     `}
                 </div>
@@ -604,27 +678,34 @@ function loadOrdersData(filter = 'pending') {
         `;
     }).join('');
 
-    // Add filter handlers
+    // Filter handlers
     document.querySelectorAll('#orders-section .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.onclick = () => {
             document.querySelectorAll('#orders-section .filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             loadOrdersData(btn.dataset.filter);
-        });
+        };
     });
 }
 
 async function approveOrder(orderId) {
-    const confirmed = await telegramManager.showConfirm('Approve this order?');
+    const confirmed = await TelegramManager.showConfirm('Approve this order?');
     if (!confirmed) return;
 
-    Loading.show('Approving order...');
+    Loading.show('Approving...');
 
     try {
         const order = await db.approveOrder(orderId);
         
-        // Notify user
-        await telegramBot.sendOrderStatusUpdate(order.userId, order, 'approved');
+        TelegramBot.sendUserNotification(order.userId, `
+✅ <b>Order Approved!</b>
+
+📋 Order ID: <code>${order.id}</code>
+📦 Product: ${order.productInfo?.name}
+💰 Amount: ${formatCurrency(order.amount)}
+
+🎮 Please check your game account.
+        `.trim());
 
         Loading.hide();
         Toast.success('Order approved');
@@ -633,41 +714,48 @@ async function approveOrder(orderId) {
 
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to approve order');
-        console.error('Approve error:', error);
+        Toast.error('Failed to approve');
     }
 }
 
 async function rejectOrder(orderId) {
-    const confirmed = await telegramManager.showConfirm('Reject this order? The amount will be refunded.');
+    const confirmed = await TelegramManager.showConfirm('Reject this order? Amount will be refunded.');
     if (!confirmed) return;
 
-    Loading.show('Rejecting order...');
+    Loading.show('Rejecting...');
 
     try {
         const order = await db.rejectOrder(orderId);
         
-        // Notify user
-        await telegramBot.sendOrderStatusUpdate(order.userId, order, 'rejected');
+        TelegramBot.sendUserNotification(order.userId, `
+❌ <b>Order Rejected</b>
+
+📋 Order ID: <code>${order.id}</code>
+📦 Product: ${order.productInfo?.name}
+💰 Amount: ${formatCurrency(order.amount)}
+
+💵 Your balance has been refunded.
+        `.trim());
 
         Loading.hide();
-        Toast.success('Order rejected and refunded');
+        Toast.success('Order rejected, balance refunded');
         loadOrdersData();
         loadDashboardData();
 
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to reject order');
-        console.error('Reject error:', error);
+        Toast.error('Failed to reject');
     }
 }
 
 // ========================================
-// Products Section
+// Products
 // ========================================
 function loadProductsData() {
     const products = db.getProducts();
     const list = document.getElementById('products-admin-list');
+
+    if (!list) return;
 
     if (!products || products.length === 0) {
         list.innerHTML = `
@@ -695,8 +783,8 @@ function loadProductsData() {
                     </div>
                 </div>
                 <div class="product-admin-card-price">
-                    ${hasDiscount ? `<span class="original">${formatCurrency(product.price, product.currency)}</span>` : ''}
-                    <span class="final">${formatCurrency(finalPrice, product.currency)}</span>
+                    ${hasDiscount ? `<span class="original">${formatCurrency(product.price)}</span>` : ''}
+                    <span class="final">${formatCurrency(finalPrice)}</span>
                     ${hasDiscount ? `<span class="discount">-${product.discount}%</span>` : ''}
                 </div>
                 <div class="product-admin-card-actions">
@@ -704,7 +792,7 @@ function loadProductsData() {
                         <i class="fas fa-edit"></i> Edit
                     </button>
                     <button class="danger" onclick="deleteProduct('${product.id}')">
-                        <i class="fas fa-trash"></i> Delete
+                        <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </div>
@@ -717,64 +805,86 @@ function openProductModal(productId = null) {
     const title = document.getElementById('product-modal-admin-title');
     const categorySelect = document.getElementById('product-category');
 
+    if (!modal) return;
+
     // Load categories
     const categories = db.getCategories();
-    categorySelect.innerHTML = categories.map(c => `
-        <option value="${c.id}">${c.name}</option>
-    `).join('');
+    if (categorySelect) {
+        categorySelect.innerHTML = categories.map(c => `
+            <option value="${c.id}">${c.name}</option>
+        `).join('');
+    }
 
     if (productId) {
-        // Edit mode
         const product = db.getProduct(productId);
         if (!product) return;
 
-        title.textContent = 'Edit Product';
+        if (title) title.textContent = 'Edit Product';
         AdminState.editingItem = product;
 
-        document.getElementById('product-category').value = product.categoryId;
-        document.getElementById('product-name').value = product.name;
-        document.getElementById('product-price').value = product.price;
-        document.getElementById('product-currency').value = product.currency;
-        document.getElementById('product-discount').value = product.discount || '';
-        document.getElementById('product-icon-preview').src = product.iconUrl || '';
-        document.getElementById('delivery-type').value = product.deliveryType;
-        document.getElementById('custom-time').value = product.deliveryTime || '';
-        document.getElementById('custom-time-group').classList.toggle('hidden', product.deliveryType === 'instant');
+        if (categorySelect) categorySelect.value = product.categoryId;
+        
+        const nameEl = document.getElementById('product-name');
+        const priceEl = document.getElementById('product-price');
+        const currencyEl = document.getElementById('product-currency');
+        const discountEl = document.getElementById('product-discount');
+        const iconPreview = document.getElementById('product-icon-preview');
+        const deliveryEl = document.getElementById('delivery-type');
+        const customTimeEl = document.getElementById('custom-time');
+        const customTimeGroup = document.getElementById('custom-time-group');
+
+        if (nameEl) nameEl.value = product.name;
+        if (priceEl) priceEl.value = product.price;
+        if (currencyEl) currencyEl.value = product.currency;
+        if (discountEl) discountEl.value = product.discount || '';
+        if (iconPreview) iconPreview.src = product.iconUrl || '';
+        if (deliveryEl) deliveryEl.value = product.deliveryType;
+        if (customTimeEl) customTimeEl.value = product.deliveryTime || '';
+        if (customTimeGroup) customTimeGroup.classList.toggle('hidden', product.deliveryType === 'instant');
 
     } else {
-        // Add mode
-        title.textContent = 'Add Product';
+        if (title) title.textContent = 'Add Product';
         AdminState.editingItem = null;
 
-        document.getElementById('product-name').value = '';
-        document.getElementById('product-price').value = '';
-        document.getElementById('product-discount').value = '';
-        document.getElementById('product-icon-preview').src = '';
-        document.getElementById('delivery-type').value = 'instant';
-        document.getElementById('custom-time').value = '';
-        document.getElementById('custom-time-group').classList.add('hidden');
+        // Reset form
+        const nameEl = document.getElementById('product-name');
+        const priceEl = document.getElementById('product-price');
+        const discountEl = document.getElementById('product-discount');
+        const iconPreview = document.getElementById('product-icon-preview');
+        const deliveryEl = document.getElementById('delivery-type');
+        const customTimeEl = document.getElementById('custom-time');
+        const customTimeGroup = document.getElementById('custom-time-group');
+
+        if (nameEl) nameEl.value = '';
+        if (priceEl) priceEl.value = '';
+        if (discountEl) discountEl.value = '';
+        if (iconPreview) iconPreview.src = '';
+        if (deliveryEl) deliveryEl.value = 'instant';
+        if (customTimeEl) customTimeEl.value = '';
+        if (customTimeGroup) customTimeGroup.classList.add('hidden');
     }
 
     modal.classList.remove('hidden');
 }
 
 function closeProductModal() {
-    document.getElementById('add-product-modal').classList.add('hidden');
+    const modal = document.getElementById('add-product-modal');
+    if (modal) modal.classList.add('hidden');
     AdminState.editingItem = null;
 }
 
 async function saveProduct() {
-    const categoryId = document.getElementById('product-category').value;
-    const name = document.getElementById('product-name').value.trim();
-    const price = document.getElementById('product-price').value;
-    const currency = document.getElementById('product-currency').value;
-    const discount = document.getElementById('product-discount').value;
-    const iconFile = document.getElementById('product-icon-file').files[0];
-    const deliveryType = document.getElementById('delivery-type').value;
-    const deliveryTime = document.getElementById('custom-time').value;
+    const categoryId = document.getElementById('product-category')?.value;
+    const name = document.getElementById('product-name')?.value?.trim();
+    const price = document.getElementById('product-price')?.value;
+    const currency = document.getElementById('product-currency')?.value;
+    const discount = document.getElementById('product-discount')?.value;
+    const iconFile = document.getElementById('product-icon-file')?.files[0];
+    const deliveryType = document.getElementById('delivery-type')?.value;
+    const deliveryTime = document.getElementById('custom-time')?.value;
 
     if (!categoryId || !name || !price) {
-        Toast.warning('Please fill in all required fields');
+        Toast.warning('Please fill in required fields');
         return;
     }
 
@@ -791,10 +901,10 @@ async function saveProduct() {
             categoryId,
             name,
             price: parseFloat(price),
-            currency,
+            currency: currency || 'MMK',
             discount: parseFloat(discount) || 0,
             iconUrl,
-            deliveryType,
+            deliveryType: deliveryType || 'instant',
             deliveryTime: deliveryType === 'instant' ? '' : deliveryTime
         };
 
@@ -806,8 +916,7 @@ async function saveProduct() {
             Toast.success('Product added');
         }
 
-        // Notify via Telegram
-        await telegramBot.notifyAdmin(`📦 Product ${AdminState.editingItem ? 'updated' : 'added'}: ${name}`);
+        TelegramBot.notifyAdmin(`📦 Product ${AdminState.editingItem ? 'updated' : 'added'}: ${name}`);
 
         Loading.hide();
         closeProductModal();
@@ -816,7 +925,6 @@ async function saveProduct() {
     } catch (error) {
         Loading.hide();
         Toast.error('Failed to save product');
-        console.error('Save product error:', error);
     }
 }
 
@@ -825,10 +933,10 @@ function editProduct(productId) {
 }
 
 async function deleteProduct(productId) {
-    const confirmed = await telegramManager.showConfirm('Are you sure you want to delete this product?');
+    const confirmed = await TelegramManager.showConfirm('Delete this product?');
     if (!confirmed) return;
 
-    Loading.show('Deleting product...');
+    Loading.show('Deleting...');
 
     try {
         await db.deleteProduct(productId);
@@ -837,12 +945,12 @@ async function deleteProduct(productId) {
         loadProductsData();
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to delete product');
+        Toast.error('Failed to delete');
     }
 }
 
 // ========================================
-// Categories Section
+// Categories
 // ========================================
 function loadCategoriesData() {
     loadCategoriesList();
@@ -853,12 +961,13 @@ function loadCategoriesList() {
     const categories = db.getCategories();
     const list = document.getElementById('categories-admin-list');
 
+    if (!list) return;
+
     if (!categories || categories.length === 0) {
         list.innerHTML = `
             <div class="empty-state" style="grid-column: 1/-1;">
                 <div class="empty-state-icon"><i class="fas fa-layer-group"></i></div>
                 <h3>No Categories</h3>
-                <p>Add your first category</p>
             </div>
         `;
         return;
@@ -868,16 +977,12 @@ function loadCategoriesList() {
         <div class="category-admin-card">
             <img src="${category.iconUrl || ''}" alt="${category.name}">
             <div class="category-admin-info">
-                <h4>${category.name} <span>${category.flag || ''}</span></h4>
+                <h4>${category.name} ${category.flag || ''}</h4>
                 <p>${db.getProductsByCategory(category.id).length} products · ${category.totalSold || 0} sold</p>
             </div>
             <div class="category-admin-actions">
-                <button onclick="editCategory('${category.id}')">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="danger" onclick="deleteCategory('${category.id}')">
-                    <i class="fas fa-trash"></i>
-                </button>
+                <button onclick="editCategory('${category.id}')"><i class="fas fa-edit"></i></button>
+                <button class="danger" onclick="deleteCategory('${category.id}')"><i class="fas fa-trash"></i></button>
             </div>
         </div>
     `).join('');
@@ -887,8 +992,10 @@ function loadInputTablesList() {
     const inputTables = db.getInputTables();
     const list = document.getElementById('input-tables-admin-list');
 
+    if (!list) return;
+
     if (!inputTables || inputTables.length === 0) {
-        list.innerHTML = '<p style="color: var(--text-tertiary);">No input tables created</p>';
+        list.innerHTML = '<p style="color: var(--text-tertiary);">No input tables</p>';
         return;
     }
 
@@ -901,12 +1008,8 @@ function loadInputTablesList() {
                     <p>${category?.name || 'Unknown'} · "${input.placeholder}"</p>
                 </div>
                 <div class="category-admin-actions">
-                    <button onclick="editInputTable('${input.id}')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="danger" onclick="deleteInputTable('${input.id}')">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <button onclick="editInputTable('${input.id}')"><i class="fas fa-edit"></i></button>
+                    <button class="danger" onclick="deleteInputTable('${input.id}')"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
         `;
@@ -917,41 +1020,54 @@ function openCategoryModal(categoryId = null) {
     const modal = document.getElementById('category-modal');
     const title = document.getElementById('category-modal-title');
 
+    if (!modal) return;
+
     if (categoryId) {
         const category = db.getCategory(categoryId);
         if (!category) return;
 
-        title.textContent = 'Edit Category';
+        if (title) title.textContent = 'Edit Category';
         AdminState.editingItem = category;
 
-        document.getElementById('category-name').value = category.name;
-        document.getElementById('category-flag').value = category.flag || '';
-        document.getElementById('has-discount').checked = category.hasDiscount;
-        document.getElementById('category-icon-preview').src = category.iconUrl || '';
+        const nameEl = document.getElementById('category-name');
+        const flagEl = document.getElementById('category-flag');
+        const discountEl = document.getElementById('has-discount');
+        const iconPreview = document.getElementById('category-icon-preview');
+
+        if (nameEl) nameEl.value = category.name;
+        if (flagEl) flagEl.value = category.flag || '';
+        if (discountEl) discountEl.checked = category.hasDiscount;
+        if (iconPreview) iconPreview.src = category.iconUrl || '';
 
     } else {
-        title.textContent = 'Add Category';
+        if (title) title.textContent = 'Add Category';
         AdminState.editingItem = null;
 
-        document.getElementById('category-name').value = '';
-        document.getElementById('category-flag').value = '';
-        document.getElementById('has-discount').checked = false;
-        document.getElementById('category-icon-preview').src = '';
+        const nameEl = document.getElementById('category-name');
+        const flagEl = document.getElementById('category-flag');
+        const discountEl = document.getElementById('has-discount');
+        const iconPreview = document.getElementById('category-icon-preview');
+
+        if (nameEl) nameEl.value = '';
+        if (flagEl) flagEl.value = '';
+        if (discountEl) discountEl.checked = false;
+        if (iconPreview) iconPreview.src = '';
     }
 
     modal.classList.remove('hidden');
 }
 
 function closeCategoryModal() {
-    document.getElementById('category-modal').classList.add('hidden');
+    const modal = document.getElementById('category-modal');
+    if (modal) modal.classList.add('hidden');
     AdminState.editingItem = null;
 }
 
 async function saveCategory() {
-    const name = document.getElementById('category-name').value.trim();
-    const flag = document.getElementById('category-flag').value;
-    const hasDiscount = document.getElementById('has-discount').checked;
-    const iconFile = document.getElementById('category-icon-file').files[0];
+    const name = document.getElementById('category-name')?.value?.trim();
+    const flag = document.getElementById('category-flag')?.value;
+    const hasDiscount = document.getElementById('has-discount')?.checked;
+    const iconFile = document.getElementById('category-icon-file')?.files[0];
 
     if (!name) {
         Toast.warning('Please enter category name');
@@ -977,7 +1093,7 @@ async function saveCategory() {
             Toast.success('Category added');
         }
 
-        await telegramBot.notifyAdmin(`📁 Category ${AdminState.editingItem ? 'updated' : 'added'}: ${name}`);
+        TelegramBot.notifyAdmin(`📁 Category ${AdminState.editingItem ? 'updated' : 'added'}: ${name}`);
 
         Loading.hide();
         closeCategoryModal();
@@ -997,12 +1113,10 @@ async function deleteCategory(categoryId) {
     const category = db.getCategory(categoryId);
     const products = db.getProductsByCategory(categoryId);
 
-    const confirmed = await telegramManager.showConfirm(
-        `Delete "${category?.name}"? This will also delete ${products.length} products.`
-    );
+    const confirmed = await TelegramManager.showConfirm(`Delete "${category?.name}"? This will also delete ${products.length} products.`);
     if (!confirmed) return;
 
-    Loading.show('Deleting category...');
+    Loading.show('Deleting...');
 
     try {
         await db.deleteCategory(categoryId);
@@ -1011,7 +1125,7 @@ async function deleteCategory(categoryId) {
         loadCategoriesData();
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to delete category');
+        Toast.error('Failed to delete');
     }
 }
 
@@ -1020,45 +1134,58 @@ function openInputTableModal(inputId = null) {
     const modal = document.getElementById('input-table-modal');
     const categorySelect = document.getElementById('input-category');
 
+    if (!modal) return;
+
     // Load categories
     const categories = db.getCategories();
-    categorySelect.innerHTML = categories.map(c => `
-        <option value="${c.id}">${c.name}</option>
-    `).join('');
+    if (categorySelect) {
+        categorySelect.innerHTML = categories.map(c => `
+            <option value="${c.id}">${c.name}</option>
+        `).join('');
+    }
 
     if (inputId) {
         const input = db.getInputTables().find(i => i.id === inputId);
         if (!input) return;
 
         AdminState.editingItem = input;
-        document.getElementById('input-category').value = input.categoryId;
-        document.getElementById('input-name').value = input.name;
-        document.getElementById('input-placeholder').value = input.placeholder;
+        if (categorySelect) categorySelect.value = input.categoryId;
+        
+        const nameEl = document.getElementById('input-name');
+        const placeholderEl = document.getElementById('input-placeholder');
+        
+        if (nameEl) nameEl.value = input.name;
+        if (placeholderEl) placeholderEl.value = input.placeholder;
     } else {
         AdminState.editingItem = null;
-        document.getElementById('input-name').value = '';
-        document.getElementById('input-placeholder').value = '';
+        
+        const nameEl = document.getElementById('input-name');
+        const placeholderEl = document.getElementById('input-placeholder');
+        
+        if (nameEl) nameEl.value = '';
+        if (placeholderEl) placeholderEl.value = '';
     }
 
     modal.classList.remove('hidden');
 }
 
 function closeInputTableModal() {
-    document.getElementById('input-table-modal').classList.add('hidden');
+    const modal = document.getElementById('input-table-modal');
+    if (modal) modal.classList.add('hidden');
     AdminState.editingItem = null;
 }
 
 async function saveInputTable() {
-    const categoryId = document.getElementById('input-category').value;
-    const name = document.getElementById('input-name').value.trim();
-    const placeholder = document.getElementById('input-placeholder').value.trim();
+    const categoryId = document.getElementById('input-category')?.value;
+    const name = document.getElementById('input-name')?.value?.trim();
+    const placeholder = document.getElementById('input-placeholder')?.value?.trim();
 
     if (!categoryId || !name) {
-        Toast.warning('Please fill in all required fields');
+        Toast.warning('Please fill in required fields');
         return;
     }
 
-    Loading.show('Saving input table...');
+    Loading.show('Saving...');
 
     try {
         const inputData = { categoryId, name, placeholder };
@@ -1077,7 +1204,7 @@ async function saveInputTable() {
 
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to save input table');
+        Toast.error('Failed to save');
     }
 }
 
@@ -1086,7 +1213,7 @@ function editInputTable(inputId) {
 }
 
 async function deleteInputTable(inputId) {
-    const confirmed = await telegramManager.showConfirm('Delete this input table?');
+    const confirmed = await TelegramManager.showConfirm('Delete this input table?');
     if (!confirmed) return;
 
     Loading.show('Deleting...');
@@ -1094,7 +1221,7 @@ async function deleteInputTable(inputId) {
     try {
         await db.deleteInputTable(inputId);
         Loading.hide();
-        Toast.success('Input table deleted');
+        Toast.success('Deleted');
         loadInputTablesList();
     } catch (error) {
         Loading.hide();
@@ -1103,7 +1230,7 @@ async function deleteInputTable(inputId) {
 }
 
 // ========================================
-// Banners Section
+// Banners
 // ========================================
 function loadBannersData() {
     loadBannersType1();
@@ -1116,8 +1243,11 @@ function switchBannerType(type) {
         btn.classList.toggle('active', btn.dataset.type === type);
     });
 
-    document.getElementById('type1-banners').classList.toggle('hidden', type !== 'type1');
-    document.getElementById('type2-banners').classList.toggle('hidden', type !== 'type2');
+    const type1El = document.getElementById('type1-banners');
+    const type2El = document.getElementById('type2-banners');
+
+    if (type1El) type1El.classList.toggle('hidden', type !== 'type1');
+    if (type2El) type2El.classList.toggle('hidden', type !== 'type2');
 
     AdminState.bannerType = type;
 }
@@ -1125,6 +1255,8 @@ function switchBannerType(type) {
 function loadBannersType1() {
     const banners = db.getBannersType1();
     const list = document.getElementById('type1-banners-list');
+
+    if (!list) return;
 
     if (!banners || banners.length === 0) {
         list.innerHTML = '<p style="color: var(--text-tertiary);">No home banners</p>';
@@ -1150,6 +1282,8 @@ function loadBannersType2() {
     const banners = db.getBannersType2();
     const list = document.getElementById('type2-banners-list');
 
+    if (!list) return;
+
     if (!banners || banners.length === 0) {
         list.innerHTML = '<p style="color: var(--text-tertiary);">No category banners</p>';
         return;
@@ -1162,7 +1296,6 @@ function loadBannersType2() {
                 <img src="${banner.imageUrl}" alt="Banner">
                 <div class="banner-admin-card-info">
                     <p>Category: ${category?.name || 'Unknown'}</p>
-                    <p>${banner.guideText ? banner.guideText.substring(0, 50) + '...' : 'No guide text'}</p>
                     <div class="banner-admin-card-actions">
                         <button class="danger" onclick="deleteBanner('${banner.id}', 'type2')">
                             <i class="fas fa-trash"></i> Delete
@@ -1176,7 +1309,8 @@ function loadBannersType2() {
 
 function loadMarqueeText() {
     const settings = db.getSettings();
-    document.getElementById('marquee-text').value = settings.marqueeText || '';
+    const textEl = document.getElementById('marquee-text');
+    if (textEl) textEl.value = settings.marqueeText || '';
 }
 
 function openBannerModal(type) {
@@ -1185,47 +1319,53 @@ function openBannerModal(type) {
     const categoryGroup = document.getElementById('banner-category-group');
     const guideGroup = document.getElementById('banner-guide-group');
     const categorySelect = document.getElementById('banner-category');
+    const typeInput = document.getElementById('banner-type');
+    const bannerPreview = document.getElementById('banner-preview');
+    const guideText = document.getElementById('banner-guide');
 
-    document.getElementById('banner-type').value = type;
+    if (!modal) return;
+
+    if (typeInput) typeInput.value = type;
+    if (bannerPreview) bannerPreview.src = '';
+    if (guideText) guideText.value = '';
 
     if (type === 'type1') {
-        title.textContent = 'Add Home Banner';
-        categoryGroup.classList.add('hidden');
-        guideGroup.classList.add('hidden');
+        if (title) title.textContent = 'Add Home Banner';
+        if (categoryGroup) categoryGroup.classList.add('hidden');
+        if (guideGroup) guideGroup.classList.add('hidden');
     } else {
-        title.textContent = 'Add Category Banner';
-        categoryGroup.classList.remove('hidden');
-        guideGroup.classList.remove('hidden');
+        if (title) title.textContent = 'Add Category Banner';
+        if (categoryGroup) categoryGroup.classList.remove('hidden');
+        if (guideGroup) guideGroup.classList.remove('hidden');
 
-        // Load categories
         const categories = db.getCategories();
-        categorySelect.innerHTML = categories.map(c => `
-            <option value="${c.id}">${c.name}</option>
-        `).join('');
+        if (categorySelect) {
+            categorySelect.innerHTML = categories.map(c => `
+                <option value="${c.id}">${c.name}</option>
+            `).join('');
+        }
     }
-
-    document.getElementById('banner-preview').src = '';
-    document.getElementById('banner-guide').value = '';
 
     modal.classList.remove('hidden');
 }
 
 function closeBannerModal() {
-    document.getElementById('banner-modal').classList.add('hidden');
+    const modal = document.getElementById('banner-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 async function saveBanner() {
-    const type = document.getElementById('banner-type').value;
-    const bannerFile = document.getElementById('banner-file').files[0];
-    const categoryId = document.getElementById('banner-category').value;
-    const guideText = document.getElementById('banner-guide').value;
+    const type = document.getElementById('banner-type')?.value;
+    const bannerFile = document.getElementById('banner-file')?.files[0];
+    const categoryId = document.getElementById('banner-category')?.value;
+    const guideText = document.getElementById('banner-guide')?.value;
 
     if (!bannerFile) {
         Toast.warning('Please upload a banner image');
         return;
     }
 
-    Loading.show('Uploading banner...');
+    Loading.show('Uploading...');
 
     try {
         const imageUrl = await fileToBase64(bannerFile);
@@ -1236,7 +1376,7 @@ async function saveBanner() {
             await db.addBannerType2({ categoryId, imageUrl, guideText });
         }
 
-        await telegramBot.notifyAdmin(`🖼️ New ${type === 'type1' ? 'home' : 'category'} banner added`);
+        TelegramBot.notifyAdmin(`🖼️ New ${type === 'type1' ? 'home' : 'category'} banner added`);
 
         Loading.hide();
         Toast.success('Banner added');
@@ -1245,12 +1385,12 @@ async function saveBanner() {
 
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to upload banner');
+        Toast.error('Failed to upload');
     }
 }
 
 async function deleteBanner(bannerId, type) {
-    const confirmed = await telegramManager.showConfirm('Delete this banner?');
+    const confirmed = await TelegramManager.showConfirm('Delete this banner?');
     if (!confirmed) return;
 
     Loading.show('Deleting...');
@@ -1262,19 +1402,19 @@ async function deleteBanner(bannerId, type) {
         loadBannersData();
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to delete banner');
+        Toast.error('Failed to delete');
     }
 }
 
 async function saveMarqueeText() {
-    const text = document.getElementById('marquee-text').value.trim();
+    const text = document.getElementById('marquee-text')?.value?.trim();
 
     Loading.show('Saving...');
 
     try {
         await db.updateSettings({ marqueeText: text });
         Loading.hide();
-        Toast.success('Marquee text saved');
+        Toast.success('Saved');
     } catch (error) {
         Loading.hide();
         Toast.error('Failed to save');
@@ -1282,7 +1422,7 @@ async function saveMarqueeText() {
 }
 
 // ========================================
-// Payments Section
+// Payments
 // ========================================
 function loadPaymentsData() {
     loadPendingTopupsAdmin();
@@ -1293,8 +1433,10 @@ function loadPendingTopupsAdmin() {
     const topups = db.getPendingTopupRequests();
     const list = document.getElementById('topups-admin-list');
 
+    if (!list) return;
+
     if (!topups || topups.length === 0) {
-        list.innerHTML = '<p style="color: var(--text-tertiary); text-align: center;">No pending top-up requests</p>';
+        list.innerHTML = '<p style="color: var(--text-tertiary); text-align: center;">No pending requests</p>';
         return;
     }
 
@@ -1305,7 +1447,7 @@ function loadPendingTopupsAdmin() {
                 <div class="topup-admin-header">
                     <img src="${getAvatarUrl(user)}" alt="User">
                     <div class="topup-admin-user">
-                        <h4>${user?.firstName || 'User'} ${user?.lastName || ''}</h4>
+                        <h4>${user?.firstName || 'User'}</h4>
                         <p>@${user?.username || 'N/A'}</p>
                     </div>
                     <span class="topup-admin-amount">${formatCurrency(topup.amount)}</span>
@@ -1313,7 +1455,7 @@ function loadPendingTopupsAdmin() {
                 <div class="topup-admin-body">
                     ${topup.receiptUrl ? `
                         <div class="topup-receipt">
-                            <img src="${topup.receiptUrl}" alt="Receipt" onclick="window.open('${topup.receiptUrl}', '_blank')">
+                            <img src="${topup.receiptUrl}" alt="Receipt" style="max-height: 200px; width: 100%; object-fit: contain; border-radius: 8px; cursor: pointer;" onclick="window.open('${topup.receiptUrl}', '_blank')">
                         </div>
                     ` : ''}
                     <div class="topup-payment-info">
@@ -1335,14 +1477,22 @@ function loadPendingTopupsAdmin() {
 }
 
 async function approveTopup(requestId) {
-    const confirmed = await telegramManager.showConfirm('Approve this top-up request?');
+    const confirmed = await TelegramManager.showConfirm('Approve this top-up?');
     if (!confirmed) return;
 
     Loading.show('Approving...');
 
     try {
         const request = await db.approveTopupRequest(requestId);
-        await telegramBot.sendTopupStatusUpdate(request.userId, request, 'approved');
+        
+        TelegramBot.sendUserNotification(request.userId, `
+✅ <b>Top-up Approved!</b>
+
+💰 Amount: ${formatCurrency(request.amount)}
+💳 Payment: ${request.paymentInfo?.name}
+
+Your balance has been updated.
+        `.trim());
 
         Loading.hide();
         Toast.success('Top-up approved');
@@ -1356,14 +1506,22 @@ async function approveTopup(requestId) {
 }
 
 async function rejectTopup(requestId) {
-    const confirmed = await telegramManager.showConfirm('Reject this top-up request?');
+    const confirmed = await TelegramManager.showConfirm('Reject this top-up?');
     if (!confirmed) return;
 
     Loading.show('Rejecting...');
 
     try {
         const request = await db.rejectTopupRequest(requestId);
-        await telegramBot.sendTopupStatusUpdate(request.userId, request, 'rejected');
+        
+        TelegramBot.sendUserNotification(request.userId, `
+❌ <b>Top-up Rejected</b>
+
+💰 Amount: ${formatCurrency(request.amount)}
+💳 Payment: ${request.paymentInfo?.name}
+
+Please check your payment details and try again.
+        `.trim());
 
         Loading.hide();
         Toast.success('Top-up rejected');
@@ -1379,12 +1537,13 @@ function loadPaymentMethodsList() {
     const methods = db.getPaymentMethods();
     const list = document.getElementById('payment-methods-admin-list');
 
+    if (!list) return;
+
     if (!methods || methods.length === 0) {
         list.innerHTML = `
             <div class="empty-state" style="grid-column: 1/-1;">
                 <div class="empty-state-icon"><i class="fas fa-credit-card"></i></div>
                 <h3>No Payment Methods</h3>
-                <p>Add payment methods for users to top up</p>
             </div>
         `;
         return;
@@ -1397,15 +1556,10 @@ function loadPaymentMethodsList() {
                 <h4>${method.name}</h4>
                 <p>${method.address}</p>
                 <p>Receiver: ${method.receiverName}</p>
-                ${method.note ? `<p style="font-style: italic; color: var(--accent-yellow);">${method.note}</p>` : ''}
             </div>
             <div class="payment-admin-actions category-admin-actions">
-                <button onclick="editPaymentMethod('${method.id}')">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="danger" onclick="deletePaymentMethod('${method.id}')">
-                    <i class="fas fa-trash"></i>
-                </button>
+                <button onclick="editPaymentMethod('${method.id}')"><i class="fas fa-edit"></i></button>
+                <button class="danger" onclick="deletePaymentMethod('${method.id}')"><i class="fas fa-trash"></i></button>
             </div>
         </div>
     `).join('');
@@ -1414,46 +1568,63 @@ function loadPaymentMethodsList() {
 function openPaymentModal(paymentId = null) {
     const modal = document.getElementById('payment-modal');
 
+    if (!modal) return;
+
     if (paymentId) {
         const method = db.getPaymentMethod(paymentId);
         if (!method) return;
 
         AdminState.editingItem = method;
-        document.getElementById('pay-name').value = method.name;
-        document.getElementById('pay-address').value = method.address;
-        document.getElementById('pay-receiver').value = method.receiverName;
-        document.getElementById('pay-note').value = method.note || '';
-        document.getElementById('payment-icon-preview').src = method.iconUrl || '';
+        
+        const nameEl = document.getElementById('pay-name');
+        const addressEl = document.getElementById('pay-address');
+        const receiverEl = document.getElementById('pay-receiver');
+        const noteEl = document.getElementById('pay-note');
+        const iconPreview = document.getElementById('payment-icon-preview');
+
+        if (nameEl) nameEl.value = method.name;
+        if (addressEl) addressEl.value = method.address;
+        if (receiverEl) receiverEl.value = method.receiverName;
+        if (noteEl) noteEl.value = method.note || '';
+        if (iconPreview) iconPreview.src = method.iconUrl || '';
     } else {
         AdminState.editingItem = null;
-        document.getElementById('pay-name').value = '';
-        document.getElementById('pay-address').value = '';
-        document.getElementById('pay-receiver').value = '';
-        document.getElementById('pay-note').value = '';
-        document.getElementById('payment-icon-preview').src = '';
+        
+        const nameEl = document.getElementById('pay-name');
+        const addressEl = document.getElementById('pay-address');
+        const receiverEl = document.getElementById('pay-receiver');
+        const noteEl = document.getElementById('pay-note');
+        const iconPreview = document.getElementById('payment-icon-preview');
+
+        if (nameEl) nameEl.value = '';
+        if (addressEl) addressEl.value = '';
+        if (receiverEl) receiverEl.value = '';
+        if (noteEl) noteEl.value = '';
+        if (iconPreview) iconPreview.src = '';
     }
 
     modal.classList.remove('hidden');
 }
 
 function closePaymentModal() {
-    document.getElementById('payment-modal').classList.add('hidden');
+    const modal = document.getElementById('payment-modal');
+    if (modal) modal.classList.add('hidden');
     AdminState.editingItem = null;
 }
 
 async function savePayment() {
-    const name = document.getElementById('pay-name').value.trim();
-    const address = document.getElementById('pay-address').value.trim();
-    const receiverName = document.getElementById('pay-receiver').value.trim();
-    const note = document.getElementById('pay-note').value.trim();
-    const iconFile = document.getElementById('payment-icon-file').files[0];
+    const name = document.getElementById('pay-name')?.value?.trim();
+    const address = document.getElementById('pay-address')?.value?.trim();
+    const receiverName = document.getElementById('pay-receiver')?.value?.trim();
+    const note = document.getElementById('pay-note')?.value?.trim();
+    const iconFile = document.getElementById('payment-icon-file')?.files[0];
 
     if (!name || !address || !receiverName) {
-        Toast.warning('Please fill in all required fields');
+        Toast.warning('Please fill in required fields');
         return;
     }
 
-    Loading.show('Saving payment method...');
+    Loading.show('Saving...');
 
     try {
         let iconUrl = AdminState.editingItem?.iconUrl || '';
@@ -1478,7 +1649,7 @@ async function savePayment() {
 
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to save payment method');
+        Toast.error('Failed to save');
     }
 }
 
@@ -1487,7 +1658,7 @@ function editPaymentMethod(paymentId) {
 }
 
 async function deletePaymentMethod(paymentId) {
-    const confirmed = await telegramManager.showConfirm('Delete this payment method?');
+    const confirmed = await TelegramManager.showConfirm('Delete this payment method?');
     if (!confirmed) return;
 
     Loading.show('Deleting...');
@@ -1495,7 +1666,7 @@ async function deletePaymentMethod(paymentId) {
     try {
         await db.deletePaymentMethod(paymentId);
         Loading.hide();
-        Toast.success('Payment method deleted');
+        Toast.success('Deleted');
         loadPaymentMethodsList();
     } catch (error) {
         Loading.hide();
@@ -1504,13 +1675,16 @@ async function deletePaymentMethod(paymentId) {
 }
 
 // ========================================
-// Settings Section
+// Settings
 // ========================================
 function loadSettingsData() {
     const settings = db.getSettings();
 
-    document.getElementById('current-logo').src = settings.logoUrl || '';
-    document.getElementById('website-name').value = settings.siteName || '';
+    const logoEl = document.getElementById('current-logo');
+    const nameEl = document.getElementById('website-name');
+
+    if (logoEl) logoEl.src = settings.logoUrl || '';
+    if (nameEl) nameEl.value = settings.siteName || '';
 }
 
 function previewLogo(input) {
@@ -1518,20 +1692,21 @@ function previewLogo(input) {
     if (!file) return;
 
     fileToBase64(file).then(base64 => {
-        document.getElementById('current-logo').src = base64;
+        const preview = document.getElementById('current-logo');
+        if (preview) preview.src = base64;
     });
 }
 
 async function saveSettings() {
-    const siteName = document.getElementById('website-name').value.trim();
-    const logoFile = document.getElementById('logo-file').files[0];
+    const siteName = document.getElementById('website-name')?.value?.trim();
+    const logoFile = document.getElementById('logo-file')?.files[0];
 
     if (!siteName) {
         Toast.warning('Please enter website name');
         return;
     }
 
-    Loading.show('Saving settings...');
+    Loading.show('Saving...');
 
     try {
         const settingsData = { siteName };
@@ -1547,81 +1722,21 @@ async function saveSettings() {
 
     } catch (error) {
         Loading.hide();
-        Toast.error('Failed to save settings');
+        Toast.error('Failed to save');
     }
 }
 
 // ========================================
-// File preview handlers
+// Initialize
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Category icon preview
-    const categoryIconInput = document.getElementById('category-icon-file');
-    if (categoryIconInput) {
-        categoryIconInput.addEventListener('change', function() {
-            if (this.files[0]) {
-                fileToBase64(this.files[0]).then(base64 => {
-                    document.getElementById('category-icon-preview').src = base64;
-                });
-            }
-        });
-    }
-
-    // Product icon preview
-    const productIconInput = document.getElementById('product-icon-file');
-    if (productIconInput) {
-        productIconInput.addEventListener('change', function() {
-            if (this.files[0]) {
-                fileToBase64(this.files[0]).then(base64 => {
-                    document.getElementById('product-icon-preview').src = base64;
-                });
-            }
-        });
-    }
-
-    // Payment icon preview
-    const paymentIconInput = document.getElementById('payment-icon-file');
-    if (paymentIconInput) {
-        paymentIconInput.addEventListener('change', function() {
-            if (this.files[0]) {
-                fileToBase64(this.files[0]).then(base64 => {
-                    document.getElementById('payment-icon-preview').src = base64;
-                });
-            }
-        });
-    }
-
-    // Banner preview
-    const bannerInput = document.getElementById('banner-file');
-    if (bannerInput) {
-        bannerInput.addEventListener('change', function() {
-            if (this.files[0]) {
-                fileToBase64(this.files[0]).then(base64 => {
-                    document.getElementById('banner-preview').src = base64;
-                });
-            }
-        });
-    }
-
-    // Broadcast image preview
-    const broadcastImageInput = document.getElementById('broadcast-image-file');
-    if (broadcastImageInput) {
-        broadcastImageInput.addEventListener('change', function() {
-            if (this.files[0]) {
-                fileToBase64(this.files[0]).then(base64 => {
-                    document.getElementById('broadcast-image-preview').src = base64;
-                });
-            }
-        });
-    }
+    console.log('Admin DOM loaded');
+    setTimeout(() => {
+        initAdmin();
+    }, 100);
 });
 
-// ========================================
-// Initialize Admin
-// ========================================
-document.addEventListener('DOMContentLoaded', initAdmin);
-
-// Export functions
+// Make functions global
 window.authenticateAdmin = authenticateAdmin;
 window.switchSection = switchSection;
 window.openUserDetail = openUserDetail;
