@@ -6,8 +6,8 @@
 // Default Schema
 const DEFAULT_SCHEMA = {
     settings: {
-        siteName: 'Gaming Top-up Shop',
-        logoUrl: '',
+        siteName: 'MAFIA GAMING',
+        logoUrl: 'https://raw.githubusercontent.com/Opper125/mafia-gaming-shopp/899070bd925bd55226b6ca3aec90b615279190b4/20260201_033108.png',
         marqueeText: 'Welcome to Gaming Top-up Shop! 🎮 Best prices for PUBG Mobile UC & Mobile Legends Diamonds!',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
