@@ -12,7 +12,7 @@ const CONFIG = {
     BOT_USERNAME: 'mafia_gamingshopbot',
     JSONBIN_API_KEY: '$2a$10$nweVi.eOGDsyC7uEsN/OxeLcIr8uhyN8x86AiIo8koJ.B7MX1I5Bu',
     JSONBIN_ACCESS_KEY: '$2a$10$tNEyDbr/ez8kUETcZBK.6OwFCcaAE4bjDV8EHQtjz3jbgjs8jqbrS',
-    JSONBIN_BIN_ID: '',
+    JSONBIN_BIN_ID: '697e5ee143b1c97be95b835f',
     INTRO_DURATION: 5000,
     BANNER_INTERVAL: 7000,
     MAX_FAILED_PURCHASES: 5,
