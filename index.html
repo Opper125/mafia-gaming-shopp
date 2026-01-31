@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gaming Top-up Shop</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Access Denied Screen (Browser Access) -->
+    <div id="access-denied" class="access-denied hidden">
+        <div class="denied-content">
+            <div class="denied-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h1>Access Denied</h1>
+            <p>This website can only be accessed through Telegram Mini App</p>
+            <p class="bot-link">Open in Telegram: <a href="https://t.me/mafia_gamingshopbot">@mafia_gamingshopbot</a></p>
+        </div>
+    </div>
+
+    <!-- Intro/Splash Screen -->
+    <div id="intro-screen" class="intro-screen">
+        <div class="intro-content">
+            <div class="logo-container">
+                <div class="logo-glow"></div>
+                <img id="intro-logo" src="" alt="Logo" class="intro-logo">
+                <div class="logo-particles">
+                    <span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+            <div class="intro-text">
+                <h1 id="site-name-intro">Gaming Shop</h1>
+                <p>Premium Game Top-up Service</p>
+            </div>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="main-app" class="main-app hidden">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <img id="header-logo" src="" alt="Logo" class="header-logo">
+                <span id="site-name" class="site-name">Gaming Shop</span>
+            </div>
+            <div class="header-right">
+                <div class="balance-container" onclick="openTopupModal()">
+                    <div class="balance-info">
+                        <span class="balance-label">Balance</span>
+                        <span id="user-balance" class="balance-amount">0.00 MMK</span>
+                    </div>
+                    <button class="topup-btn">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- User Info Bar -->
+        <div class="user-info-bar">
+            <div class="user-avatar">
+                <img id="user-avatar" src="" alt="Avatar">
+                <span class="online-dot"></span>
+            </div>
+            <div class="user-details">
+                <span id="user-name" class="user-name">User</span>
+                <span class="user-status">
+                    <i class="fas fa-check-circle"></i> Logged in via Telegram
+                </span>
+            </div>
+            <div id="premium-badge" class="premium-badge hidden">
+                <i class="fas fa-star"></i> Premium
+            </div>
+        </div>
+
+        <!-- Admin Panel Button (Only for Admin) -->
+        <div id="admin-access" class="admin-access hidden">
+            <button onclick="openAdminPanel()" class="admin-btn">
+                <i class="fas fa-cog"></i>
+                <span>Admin Panel</span>
+                <i class="fas fa-arrow-right"></i>
+            </button>
+        </div>
+
+        <!-- Banner Slider -->
+        <div class="banner-section">
+            <div class="banner-slider" id="banner-slider">
+                <div class="banner-track" id="banner-track">
+                    <!-- Banners will be loaded dynamically -->
+                </div>
+                <div class="banner-dots" id="banner-dots"></div>
+            </div>
+        </div>
+
+        <!-- Live Marquee -->
+        <div class="marquee-section">
+            <div class="marquee-icon">
+                <i class="fas fa-bullhorn"></i>
+            </div>
+            <div class="marquee-container">
+                <div class="marquee-content" id="marquee-content">
+                    <!-- Live text will be loaded dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Categories Section -->
+        <div class="categories-section">
+            <div class="section-header">
+                <h2><i class="fas fa-gamepad"></i> Categories</h2>
+            </div>
+            <div class="categories-grid" id="categories-grid">
+                <!-- Categories will be loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Navigation Bar -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-page="home">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+            <button class="nav-item" data-page="orders">
+                <i class="fas fa-shopping-bag"></i>
+                <span>Orders</span>
+            </button>
+            <button class="nav-item" data-page="history">
+                <i class="fas fa-history"></i>
+                <span>History</span>
+            </button>
+            <button class="nav-item" data-page="profile">
+                <i class="fas fa-user"></i>
+                <span>Profile</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Category Page -->
+    <div id="category-page" class="page hidden">
+        <div class="page-header">
+            <button class="back-btn" onclick="goBack()">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h1 id="category-title">Category</h1>
+            <div class="header-spacer"></div>
+        </div>
+        
+        <!-- Input Tables -->
+        <div class="input-tables-section" id="input-tables-section">
+            <!-- Input tables will be loaded dynamically -->
+        </div>
+
+        <!-- Products Grid -->
+        <div class="products-section">
+            <div class="products-grid" id="products-grid">
+                <!-- Products will be loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Category Banner (Type 2) -->
+        <div class="category-banner-section" id="category-banner-section">
+            <!-- Type 2 banners will be loaded here -->
+        </div>
+
+        <!-- Category Guide -->
+        <div class="category-guide" id="category-guide">
+            <!-- Guide content will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Orders Page -->
+    <div id="orders-page" class="page hidden">
+        <div class="page-header">
+            <button class="back-btn" onclick="showHomePage()">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h1>My Orders</h1>
+            <div class="header-spacer"></div>
+        </div>
+        <div class="orders-list" id="orders-list">
+            <!-- Orders will be loaded dynamically -->
+        </div>
+    </div>
+
+    <!-- History Page -->
+    <div id="history-page" class="page hidden">
+        <div class="page-header">
+            <button class="back-btn" onclick="showHomePage()">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h1>Transaction History</h1>
+            <div class="header-spacer"></div>
+        </div>
+        <div class="history-tabs">
+            <button class="tab-btn active" data-tab="deposits">Deposits</button>
+            <button class="tab-btn" data-tab="purchases">Purchases</button>
+        </div>
+        <div class="history-list" id="history-list">
+            <!-- History will be loaded dynamically -->
+        </div>
+    </div>
+
+    <!-- Profile Page -->
+    <div id="profile-page" class="page hidden">
+        <div class="page-header">
+            <button class="back-btn" onclick="showHomePage()">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h1>Profile</h1>
+            <div class="header-spacer"></div>
+        </div>
+        <div class="profile-content">
+            <div class="profile-card">
+                <div class="profile-avatar">
+                    <img id="profile-avatar" src="" alt="Avatar">
+                </div>
+                <h2 id="profile-name">User Name</h2>
+                <p id="profile-username">@username</p>
+                <div class="profile-stats">
+                    <div class="stat-item">
+                        <span class="stat-value" id="total-orders">0</span>
+                        <span class="stat-label">Orders</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="total-spent">0</span>
+                        <span class="stat-label">Spent (MMK)</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="member-since">-</span>
+                        <span class="stat-label">Member Since</span>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-menu">
+                <button class="menu-item" onclick="openTopupModal()">
+                    <i class="fas fa-wallet"></i>
+                    <span>Top Up Balance</span>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <button class="menu-item" onclick="showOrdersPage()">
+                    <i class="fas fa-shopping-bag"></i>
+                    <span>My Orders</span>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <button class="menu-item" onclick="showHistoryPage()">
+                    <i class="fas fa-history"></i>
+                    <span>Transaction History</span>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <button class="menu-item" onclick="toggleTheme()">
+                    <i class="fas fa-moon" id="theme-icon"></i>
+                    <span>Dark Mode</span>
+                    <div class="toggle-switch" id="theme-toggle"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Topup Modal -->
+    <div id="topup-modal" class="modal hidden">
+        <div class="modal-overlay" onclick="closeTopupModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-wallet"></i> Top Up Balance</h2>
+                <button class="close-btn" onclick="closeTopupModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Payment Methods -->
+                <div class="payment-methods" id="payment-methods">
+                    <!-- Payment methods will be loaded dynamically -->
+                </div>
+                
+                <!-- Selected Payment Info -->
+                <div id="payment-details" class="payment-details hidden">
+                    <div class="payment-info-card">
+                        <img id="payment-icon" src="" alt="Payment" class="payment-icon">
+                        <div class="payment-info">
+                            <h3 id="payment-name"></h3>
+                            <p id="payment-address" class="copy-text" onclick="copyText(this)">
+                                <span></span>
+                                <i class="fas fa-copy"></i>
+                            </p>
+                            <p id="payment-receiver"></p>
+                            <p id="payment-note" class="payment-note"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="amount-input">
+                        <label>Amount (MMK)</label>
+                        <input type="number" id="topup-amount" placeholder="Enter amount">
+                    </div>
+                    
+                    <div class="receipt-upload">
+                        <label>Upload Payment Receipt</label>
+                        <div class="upload-area" onclick="document.getElementById('receipt-file').click()">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Click to upload receipt</p>
+                            <input type="file" id="receipt-file" accept="image/*" onchange="previewReceipt(this)">
+                        </div>
+                        <div id="receipt-preview" class="receipt-preview hidden">
+                            <img id="preview-img" src="" alt="Receipt">
+                            <button onclick="removeReceipt()"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                    
+                    <button class="submit-topup-btn" onclick="submitTopup()">
+                        <i class="fas fa-paper-plane"></i> Submit Top Up Request
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="product-modal" class="modal hidden">
+        <div class="modal-overlay" onclick="closeProductModal()"></div>
+        <div class="modal-content product-modal-content">
+            <div class="modal-header">
+                <h2 id="product-modal-title">Product</h2>
+                <button class="close-btn" onclick="closeProductModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="product-detail">
+                    <img id="product-modal-icon" src="" alt="Product" class="product-modal-icon">
+                    <div class="product-modal-info">
+                        <h3 id="product-modal-name"></h3>
+                        <div class="product-modal-price">
+                            <span id="product-original-price" class="original-price"></span>
+                            <span id="product-final-price" class="final-price"></span>
+                            <span id="product-discount-badge" class="discount-badge"></span>
+                        </div>
+                        <p id="product-delivery-time" class="delivery-time"></p>
+                    </div>
+                </div>
+                
+                <div class="order-summary">
+                    <div class="summary-row">
+                        <span>Your Balance:</span>
+                        <span id="modal-balance">0.00 MMK</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Product Price:</span>
+                        <span id="modal-price">0.00 MMK</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>After Purchase:</span>
+                        <span id="modal-remaining">0.00 MMK</span>
+                    </div>
+                </div>
+                
+                <div class="input-review" id="input-review">
+                    <!-- Input values review -->
+                </div>
+                
+                <button class="buy-now-btn" onclick="confirmPurchase()">
+                    <i class="fas fa-shopping-cart"></i> Buy Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verification Modal -->
+    <div id="verification-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content verification-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-shield-alt"></i> Payment Verification</h2>
+            </div>
+            <div class="modal-body">
+                <p class="verification-text">Enter your Telegram 2FA password or the OTP code sent to your Telegram</p>
+                <div class="verification-input">
+                    <input type="password" id="verification-code" placeholder="Enter code">
+                </div>
+                <div class="verification-buttons">
+                    <button class="cancel-btn" onclick="cancelVerification()">Cancel</button>
+                    <button class="verify-btn" onclick="verifyPayment()">Verify</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <div class="toast-icon"></div>
+        <div class="toast-message"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loader">
+            <div class="loader-ring"></div>
+            <div class="loader-ring"></div>
+            <div class="loader-ring"></div>
+        </div>
+        <p id="loading-text">Loading...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/utils.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/telegram.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
