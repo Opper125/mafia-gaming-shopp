@@ -5,6 +5,19 @@
 // Telegram WebApp Instance
 const tg = window.Telegram?.WebApp;
 
+// Configuration and utility imports
+const CONFIG = {
+    BOT_TOKEN: 'your_bot_token_here',
+    ADMIN_TELEGRAM_ID: 'admin_telegram_id_here'
+};
+
+const formatCurrency = (amount, currency = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency
+    }).format(amount);
+};
+
 // ========================================
 // Telegram Manager
 // ========================================
@@ -170,15 +183,15 @@ const TelegramBot = {
         const message = `
 🛒 <b>New Order!</b>
 
-📋 <b>Order ID:</b> <code>${order.id}</code>
-👤 <b>User:</b> ${user.firstName || 'User'} (@${user.username || 'N/A'})
-🆔 <b>User ID:</b> <code>${user.telegramId}</code>
+📋 <b>Order ID:</b> <code>${order.order_number || order.id}</code>
+👤 <b>User:</b> ${user.first_name || 'User'} (@${user.username || 'N/A'})
+🆔 <b>User ID:</b> <code>${user.telegram_id}</code>
 
-📦 <b>Product:</b> ${order.productInfo?.name || 'N/A'}
+📦 <b>Product:</b> ${order.product_info?.name || 'N/A'}
 💰 <b>Amount:</b> ${formatCurrency(order.amount, order.currency)}
 
 📝 <b>Input Values:</b>
-${Object.entries(order.inputValues || {}).map(([key, value]) => `• ${key}: <code>${value}</code>`).join('\n') || 'None'}
+${Object.entries(order.input_values || {}).map(([key, value]) => `• ${key}: <code>${value}</code>`).join('\n') || 'None'}
 
 ⏰ <b>Time:</b> ${new Date().toLocaleString()}
         `.trim();
@@ -191,10 +204,10 @@ ${Object.entries(order.inputValues || {}).map(([key, value]) => `• ${key}: <co
 💳 <b>New Top-up Request!</b>
 
 🆔 <b>Request ID:</b> <code>${request.id}</code>
-👤 <b>User:</b> ${user.firstName || 'User'} (@${user.username || 'N/A'})
+👤 <b>User:</b> ${user.first_name || 'User'} (@${user.username || 'N/A'})
 
 💰 <b>Amount:</b> ${formatCurrency(request.amount)}
-💳 <b>Payment:</b> ${request.paymentInfo?.name || 'N/A'}
+💳 <b>Payment:</b> ${request.payment_info?.name || 'N/A'}
 
 ⏰ <b>Time:</b> ${new Date().toLocaleString()}
         `.trim();
