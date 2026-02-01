@@ -1,21 +1,3 @@
-import { Toast } from "@/components/ui/toast";
-import { TelegramManager } from "@/managers/telegram";
-import { Loading } from "@/components/ui/loading";
-import { db } from "@/database";
-import { formatCurrency } from "@/utils/formatCurrency";
-import { getAvatarUrl } from "@/utils/getAvatarUrl";
-import { CONFIG } from "@/config";
-import { isAdmin } from "@/utils/isAdmin";
-import { ThemeManager } from "@/managers/theme";
-import { formatNumber } from "@/utils/formatNumber";
-import { calculateDiscount } from "@/utils/calculateDiscount";
-import { parseText } from "@/utils/parseText";
-import { VerificationManager } from "@/managers/verification";
-import { TelegramBot } from "@/bot/telegram";
-import { fileToBase64 } from "@/utils/fileToBase64";
-import { formatDate } from "@/utils/formatDate";
-import { formatRelativeTime } from "@/utils/formatRelativeTime"; // Declare formatRelativeTime variable
-
 /* ========================================
    Gaming Top-up Shop - Main Application
    ======================================== */
@@ -549,7 +531,7 @@ function openProductModal(product) {
     const hasDiscount = product.discount > 0;
     const finalPrice = hasDiscount ? calculateDiscount(product.price, product.discount) : product.price;
 
-    const defaultIcon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%238B5CF6" width="100" height="100" rx="15"/></svg>';
+    const defaultIcon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%233B82F6" width="100" height="100" rx="15"/><text x="50" y="60" font-size="40" fill="white" text-anchor="middle">💳</text></svg>';
 
     document.getElementById('product-modal-title').textContent = 'Order Details';
     document.getElementById('product-modal-icon').src = product.icon_url || defaultIcon;
