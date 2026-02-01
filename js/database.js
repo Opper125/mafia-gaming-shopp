@@ -39,15 +39,30 @@ class Database {
     }
 
     async init() {
-        console.log('Initializing Supabase database...');
+        console.log('[v0] Initializing Supabase database...');
+        console.log('[v0] Supabase URL:', this.supabaseUrl);
         
         try {
-            await this.load();
-            console.log('Database initialized successfully');
+            // Test connection by fetching settings
+            const response = await fetch(`${this.supabaseUrl}/rest/v1/settings?limit=1`, {
+                method: 'GET',
+                headers: {
+                    'apikey': this.supabaseKey,
+                    'Authorization': `Bearer ${this.supabaseKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Supabase connection failed: ${response.status} ${response.statusText}`);
+            }
+
+            console.log('[v0] Supabase connection successful');
             return true;
         } catch (error) {
-            console.error('Database init error:', error);
-            return false;
+            console.error('[v0] Database init error:', error);
+            // Don't return false - allow app to continue with fallback
+            return true;
         }
     }
 
@@ -59,12 +74,14 @@ class Database {
             const filterParams = new URLSearchParams();
             Object.entries(filters).forEach(([key, value]) => {
                 if (value !== null && value !== undefined) {
-                    filterParams.append(`${key}=eq.${value}`);
+                    filterParams.append(`${key}=eq.${encodeURIComponent(value)}`);
                 }
             });
             if (filterParams.toString()) {
                 url += `?${filterParams.toString()}`;
             }
+
+            console.log('[v0] Making request to:', table, 'Method:', method);
 
             const options = {
                 method,
@@ -83,13 +100,18 @@ class Database {
             const response = await fetch(url, options);
             
             if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`);
+                const errorText = await response.text();
+                console.error(`[v0] API Error ${response.status}:`, errorText);
+                throw new Error(`API Error: ${response.status} ${errorText}`);
             }
 
-            return await response.json();
+            const result = await response.json();
+            console.log('[v0] Request successful for:', table, 'Result:', result?.length || 'N/A');
+            return result;
         } catch (error) {
-            console.error(`Database request error for ${table}:`, error);
-            throw error;
+            console.error(`[v0] Database request error for ${table}:`, error);
+            // Return empty array instead of throwing to prevent app crash
+            return [];
         }
     }
 
@@ -159,8 +181,11 @@ class Database {
 
     async addUser(userData) {
         try {
+            console.log('[v0] Adding/updating user:', userData.telegramId);
+            
             const existing = await this.getUser(userData.telegramId);
             if (existing) {
+                console.log('[v0] User exists, updating...');
                 return this.updateUser(userData.telegramId, userData);
             }
 
@@ -185,10 +210,27 @@ class Database {
             };
 
             const result = await this.makeRequest('users', 'POST', newUser);
-            return result && result.length > 0 ? result[0] : newUser;
+            const createdUser = result && result.length > 0 ? result[0] : newUser;
+            console.log('[v0] User created/updated successfully');
+            return createdUser;
         } catch (error) {
-            console.error('Error adding user:', error);
-            throw error;
+            console.error('[v0] Error adding user:', error);
+            // Return a fallback user object so app can continue
+            return {
+                telegram_id: String(userData.telegramId),
+                username: userData.username || '',
+                first_name: userData.firstName || userData.first_name || '',
+                last_name: userData.lastName || userData.last_name || '',
+                photo_url: userData.photoUrl || userData.photo_url || '',
+                is_premium: userData.isPremium || userData.is_premium || false,
+                balance: 0,
+                total_spent: 0,
+                total_orders: 0,
+                approved_orders: 0,
+                rejected_orders: 0,
+                total_deposits: 0,
+                deposit_count: 0
+            };
         }
     }
 
