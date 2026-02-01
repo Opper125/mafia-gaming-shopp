@@ -1,3 +1,21 @@
+import { Toast } from "@/components/ui/toast"
+import { TelegramManager } from "@/managers/telegramManager"
+import { Loading } from "@/components/ui/loading"
+import { db } from "@/services/database"
+import { formatCurrency } from "@/utils/formatCurrency"
+import { getAvatarUrl } from "@/utils/getAvatarUrl"
+import { CONFIG } from "@/config"
+import { isAdmin } from "@/utils/isAdmin"
+import { ThemeManager } from "@/managers/themeManager"
+import { formatNumber } from "@/utils/formatNumber"
+import { calculateDiscount } from "@/utils/calculateDiscount"
+import { parseText } from "@/utils/parseText"
+import { VerificationManager } from "@/managers/verificationManager"
+import { TelegramBot } from "@/bots/telegramBot"
+import { fileToBase64 } from "@/utils/fileToBase64"
+import { formatDate } from "@/utils/formatDate"
+import { formatRelativeTime } from "@/utils/formatRelativeTime"
+
 /* ========================================
    Gaming Top-up Shop - Main Application
    ======================================== */
@@ -21,65 +39,88 @@ const AppState = {
 // Initialization
 // ========================================
 async function initApp() {
-    console.log('=== Initializing App ===');
+    console.log('[v0] === Initializing App ===');
 
-    // Initialize Telegram
-    const telegramReady = TelegramManager.init();
-    console.log('Telegram ready:', telegramReady);
+    try {
+        // Initialize Telegram
+        console.log('[v0] Initializing Telegram...');
+        const telegramReady = TelegramManager.init();
+        console.log('[v0] Telegram ready:', telegramReady);
 
-    // Check if in Telegram
-    if (!TelegramManager.isInTelegram()) {
-        console.log('Not in Telegram, showing access denied');
-        showAccessDenied();
-        return;
-    }
+        // Check if in Telegram
+        if (!TelegramManager.isInTelegram()) {
+            console.log('[v0] Not in Telegram, showing access denied');
+            showAccessDenied();
+            return;
+        }
 
-    // Get Telegram user
-    const telegramUser = TelegramManager.getUser();
-    console.log('Telegram User:', telegramUser);
+        // Get Telegram user
+        console.log('[v0] Getting Telegram user...');
+        const telegramUser = TelegramManager.getUser();
+        console.log('[v0] Telegram User:', telegramUser);
 
-    if (!telegramUser) {
-        console.log('No Telegram user found');
-        showAccessDenied();
-        return;
-    }
+        if (!telegramUser) {
+            console.log('[v0] No Telegram user found');
+            showAccessDenied();
+            return;
+        }
 
-    // Initialize database
-    Loading.show('Loading...');
-    await db.init();
+        // Initialize database
+        console.log('[v0] Showing loading screen...');
+        Loading.show('Loading...');
+        
+        console.log('[v0] Initializing database...');
+        await db.init();
+        console.log('[v0] Database initialized');
 
-    // Register/update user
-    AppState.currentUser = await db.addUser({
-        telegramId: telegramUser.id,
-        username: telegramUser.username || '',
-        firstName: telegramUser.first_name || '',
-        lastName: telegramUser.last_name || '',
-        photoUrl: telegramUser.photo_url || '',
-        isPremium: telegramUser.is_premium || false
-    });
+        // Register/update user
+        console.log('[v0] Adding/updating user...');
+        AppState.currentUser = await db.addUser({
+            telegramId: telegramUser.id,
+            username: telegramUser.username || '',
+            firstName: telegramUser.first_name || '',
+            lastName: telegramUser.last_name || '',
+            photoUrl: telegramUser.photo_url || '',
+            isPremium: telegramUser.is_premium || false
+        });
 
-    console.log('Current User:', AppState.currentUser);
+        console.log('[v0] Current User:', AppState.currentUser);
 
-    // Check if banned
-    const isBanned = await db.isUserBanned(telegramUser.id);
-    if (isBanned) {
+        // Check if banned
+        console.log('[v0] Checking if user is banned...');
+        const isBanned = await db.isUserBanned(telegramUser.id);
+        if (isBanned) {
+            console.log('[v0] User is banned');
+            Loading.hide();
+            showBannedScreen();
+            return;
+        }
+
+        console.log('[v0] Hiding loading screen...');
         Loading.hide();
-        showBannedScreen();
-        return;
+
+        // Hide intro, show main app
+        console.log('[v0] Showing main app...');
+        hideIntroShowApp();
+
+        // Update UI
+        console.log('[v0] Updating user UI...');
+        await updateUserUI();
+        
+        console.log('[v0] Loading home page...');
+        await loadHomePage();
+        
+        console.log('[v0] Initializing UI...');
+        initializeUI();
+
+        AppState.isInitialized = true;
+        console.log('[v0] === App Initialized Successfully ===');
+    } catch (error) {
+        console.error('[v0] App initialization error:', error);
+        Loading.hide();
+        Toast.error('Failed to initialize app. Please refresh.');
+        showAccessDenied();
     }
-
-    Loading.hide();
-
-    // Hide intro, show main app
-    hideIntroShowApp();
-
-    // Update UI
-    await updateUserUI();
-    await loadHomePage();
-    initializeUI();
-
-    AppState.isInitialized = true;
-    console.log('=== App Initialized ===');
 }
 
 function showAccessDenied() {
@@ -1050,12 +1091,29 @@ function openAdminPanel() {
 // Initialize
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, starting init...');
+    console.log('[v0] DOM loaded, starting init...');
     
     // Wait for Telegram script to load
     setTimeout(() => {
-        initApp();
+        console.log('[v0] Calling initApp...');
+        initApp().catch(error => {
+            console.error('[v0] Unexpected error in initApp:', error);
+            Toast.error('An unexpected error occurred');
+        });
     }, 100);
+});
+
+// Also initialize on window load as fallback
+window.addEventListener('load', () => {
+    console.log('[v0] Window load event fired');
+    if (!AppState.isInitialized) {
+        console.log('[v0] App not initialized, trying again...');
+        setTimeout(() => {
+            initApp().catch(error => {
+                console.error('[v0] Error in window load initApp:', error);
+            });
+        }, 500);
+    }
 });
 
 // Make functions global
