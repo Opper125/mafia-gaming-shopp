@@ -1,21 +1,3 @@
-import { Toast } from "@/components/ui/toast"
-import { TelegramManager } from "@/managers/telegramManager"
-import { Loading } from "@/components/ui/loading"
-import { db } from "@/services/database"
-import { formatCurrency } from "@/utils/formatCurrency"
-import { getAvatarUrl } from "@/utils/getAvatarUrl"
-import { CONFIG } from "@/config"
-import { isAdmin } from "@/utils/isAdmin"
-import { ThemeManager } from "@/managers/themeManager"
-import { formatNumber } from "@/utils/formatNumber"
-import { calculateDiscount } from "@/utils/calculateDiscount"
-import { parseText } from "@/utils/parseText"
-import { VerificationManager } from "@/managers/verificationManager"
-import { TelegramBot } from "@/bots/telegramBot"
-import { fileToBase64 } from "@/utils/fileToBase64"
-import { formatDate } from "@/utils/formatDate"
-import { formatRelativeTime } from "@/utils/formatRelativeTime"
-
 /* ========================================
    Gaming Top-up Shop - Main Application
    ======================================== */
