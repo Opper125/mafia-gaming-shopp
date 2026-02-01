@@ -5,10 +5,6 @@
 // Telegram WebApp Instance
 const tg = window.Telegram?.WebApp;
 
-// Note: CONFIG and formatCurrency are defined in utils.js
-const CONFIG = window.CONFIG; // Declare CONFIG
-const formatCurrency = window.formatCurrency; // Declare formatCurrency
-
 // ========================================
 // Telegram Manager
 // ========================================
