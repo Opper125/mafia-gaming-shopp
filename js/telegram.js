@@ -5,18 +5,7 @@
 // Telegram WebApp Instance
 const tg = window.Telegram?.WebApp;
 
-// Configuration and utility imports
-const CONFIG = {
-    BOT_TOKEN: 'your_bot_token_here',
-    ADMIN_TELEGRAM_ID: 'admin_telegram_id_here'
-};
-
-const formatCurrency = (amount, currency = 'USD') => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency
-    }).format(amount);
-};
+// Note: CONFIG and formatCurrency are defined in utils.js
 
 // ========================================
 // Telegram Manager
