@@ -1,3 +1,21 @@
+import { Toast } from "@/components/ui/toast";
+import { TelegramManager } from "@/managers/telegram";
+import { Loading } from "@/components/ui/loading";
+import { db } from "@/database";
+import { formatCurrency } from "@/utils/formatCurrency";
+import { getAvatarUrl } from "@/utils/getAvatarUrl";
+import { CONFIG } from "@/config";
+import { isAdmin } from "@/utils/isAdmin";
+import { ThemeManager } from "@/managers/theme";
+import { formatNumber } from "@/utils/formatNumber";
+import { calculateDiscount } from "@/utils/calculateDiscount";
+import { parseText } from "@/utils/parseText";
+import { VerificationManager } from "@/managers/verification";
+import { TelegramBot } from "@/bot/telegram";
+import { fileToBase64 } from "@/utils/fileToBase64";
+import { formatDate } from "@/utils/formatDate";
+import { formatRelativeTime } from "@/utils/formatRelativeTime"; // Declare formatRelativeTime variable
+
 /* ========================================
    Gaming Top-up Shop - Main Application
    ======================================== */
@@ -61,7 +79,8 @@ async function initApp() {
     console.log('Current User:', AppState.currentUser);
 
     // Check if banned
-    if (db.isUserBanned(telegramUser.id)) {
+    const isBanned = await db.isUserBanned(telegramUser.id);
+    if (isBanned) {
         Loading.hide();
         showBannedScreen();
         return;
@@ -73,8 +92,8 @@ async function initApp() {
     hideIntroShowApp();
 
     // Update UI
-    updateUserUI();
-    loadHomePage();
+    await updateUserUI();
+    await loadHomePage();
     initializeUI();
 
     AppState.isInitialized = true;
@@ -110,9 +129,9 @@ function hideIntroShowApp() {
     if (mainApp) mainApp.classList.remove('hidden');
 }
 
-function updateUserUI() {
+async function updateUserUI() {
     const user = AppState.currentUser;
-    const settings = db.getSettings();
+    const settings = await db.getSettings();
 
     console.log('Updating UI with user:', user);
     console.log('Settings:', settings);
@@ -140,9 +159,9 @@ function updateUserUI() {
     const premiumBadge = document.getElementById('premium-badge');
 
     if (userAvatar) userAvatar.src = getAvatarUrl(user);
-    if (userName) userName.textContent = `${user?.firstName || 'User'} ${user?.lastName || ''}`.trim();
+    if (userName) userName.textContent = `${user?.first_name || 'User'} ${user?.last_name || ''}`.trim();
     if (premiumBadge) {
-        if (user?.isPremium) {
+        if (user?.is_premium) {
             premiumBadge.classList.remove('hidden');
         } else {
             premiumBadge.classList.add('hidden');
@@ -152,11 +171,11 @@ function updateUserUI() {
     // Admin access
     const adminAccess = document.getElementById('admin-access');
     if (adminAccess) {
-        console.log('Checking admin access for:', user?.telegramId);
+        console.log('Checking admin access for:', user?.telegram_id);
         console.log('Admin ID:', CONFIG.ADMIN_TELEGRAM_ID);
-        console.log('Is Admin:', isAdmin(user?.telegramId));
+        console.log('Is Admin:', isAdmin(user?.telegram_id));
         
-        if (isAdmin(user?.telegramId)) {
+        if (isAdmin(user?.telegram_id)) {
             adminAccess.classList.remove('hidden');
         } else {
             adminAccess.classList.add('hidden');
@@ -242,14 +261,14 @@ function goBack() {
 // ========================================
 // Home Page
 // ========================================
-function loadHomePage() {
-    loadBanners();
-    loadCategories();
-    updateMarquee();
+async function loadHomePage() {
+    await loadBanners();
+    await loadCategories();
+    await updateMarquee();
 }
 
-function loadBanners() {
-    const banners = db.getBannersType1();
+async function loadBanners() {
+    const banners = await db.getBannersType1();
     const track = document.getElementById('banner-track');
     const dots = document.getElementById('banner-dots');
 
@@ -269,7 +288,7 @@ function loadBanners() {
 
     track.innerHTML = banners.map(banner => `
         <div class="banner-slide">
-            <img src="${banner.imageUrl}" alt="Banner" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-lg);">
+            <img src="${banner.image_url}" alt="Banner" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-lg);">
         </div>
     `).join('');
 
@@ -286,12 +305,12 @@ function loadBanners() {
     }
 }
 
-function startBannerSlider() {
+async function startBannerSlider() {
     if (AppState.bannerInterval) {
         clearInterval(AppState.bannerInterval);
     }
 
-    const banners = db.getBannersType1();
+    const banners = await db.getBannersType1();
     if (!banners || banners.length <= 1) return;
 
     AppState.bannerInterval = setInterval(() => {
@@ -319,16 +338,16 @@ function updateBannerPosition() {
     });
 }
 
-function updateMarquee() {
-    const settings = db.getSettings();
+async function updateMarquee() {
+    const settings = await db.getSettings();
     const marqueeContent = document.getElementById('marquee-content');
     if (marqueeContent) {
-        marqueeContent.textContent = settings.marqueeText || 'Welcome to Gaming Top-up Shop!';
+        marqueeContent.textContent = settings.marquee_text || 'Welcome to Gaming Top-up Shop!';
     }
 }
 
-function loadCategories() {
-    const categories = db.getCategories();
+async function loadCategories() {
+    const categories = await db.getCategories();
     const grid = document.getElementById('categories-grid');
 
     if (!grid) return;
@@ -349,12 +368,12 @@ function loadCategories() {
     grid.innerHTML = categories.map(category => `
         <div class="category-card" onclick="openCategory('${category.id}')">
             ${category.flag ? `<span class="category-flag">${category.flag}</span>` : ''}
-            ${category.hasDiscount ? '<span class="discount-mark">SALE</span>' : ''}
-            <img src="${category.iconUrl || defaultIcon}" alt="${category.name}" class="category-icon" onerror="this.src='${defaultIcon}'">
+            ${category.has_discount ? '<span class="discount-mark">SALE</span>' : ''}
+            <img src="${category.icon_url || defaultIcon}" alt="${category.name}" class="category-icon" onerror="this.src='${defaultIcon}'">
             <div class="category-name">${category.name}</div>
             <div class="category-sold">
                 <i class="fas fa-shopping-cart"></i>
-                ${formatNumber(category.totalSold || 0)} sold
+                ${formatNumber(category.total_sold || 0)} sold
             </div>
         </div>
     `).join('');
@@ -363,8 +382,8 @@ function loadCategories() {
 // ========================================
 // Category Page
 // ========================================
-function openCategory(categoryId) {
-    const category = db.getCategory(categoryId);
+async function openCategory(categoryId) {
+    const category = await db.getCategory(categoryId);
     if (!category) {
         Toast.error('Category not found');
         return;
@@ -395,8 +414,8 @@ function openCategory(categoryId) {
     TelegramManager.haptic('impact', 'light');
 }
 
-function loadInputTables(categoryId) {
-    const inputTables = db.getInputTablesByCategory(categoryId);
+async function loadInputTables(categoryId) {
+    const inputTables = await db.getInputTablesByCategory(categoryId);
     const section = document.getElementById('input-tables-section');
 
     if (!section) return;
@@ -422,8 +441,8 @@ function handleInputChange(inputId, inputName, value) {
     AppState.inputValues[inputName] = value;
 }
 
-function loadProducts(categoryId) {
-    const products = db.getProductsByCategory(categoryId);
+async function loadProducts(categoryId) {
+    const products = await db.getProductsByCategory(categoryId);
     const grid = document.getElementById('products-grid');
 
     if (!grid) return;
@@ -448,7 +467,7 @@ function loadProducts(categoryId) {
         return `
             <div class="product-card" onclick="selectProduct('${product.id}')" id="product-${product.id}">
                 ${hasDiscount ? `<span class="product-discount-badge">-${product.discount}%</span>` : ''}
-                <img src="${product.iconUrl || defaultIcon}" alt="${product.name}" class="product-icon" onerror="this.src='${defaultIcon}'">
+                <img src="${product.icon_url || defaultIcon}" alt="${product.name}" class="product-icon" onerror="this.src='${defaultIcon}'">
                 <div class="product-name">${product.name}</div>
                 <div class="product-price">
                     ${hasDiscount ? `<span class="original-price">${formatCurrency(product.price, product.currency)}</span>` : ''}
@@ -456,22 +475,22 @@ function loadProducts(categoryId) {
                 </div>
                 <div class="delivery-time">
                     <i class="fas fa-bolt"></i>
-                    ${product.deliveryType === 'instant' ? 'အမြန်ရသည်' : product.deliveryTime || 'Processing'}
+                    ${product.delivery_type === 'instant' ? 'အမြန်ရသည်' : product.delivery_time || 'Processing'}
                 </div>
             </div>
         `;
     }).join('');
 }
 
-function selectProduct(productId) {
-    const product = db.getProduct(productId);
+async function selectProduct(productId) {
+    const product = await db.getProduct(productId);
     if (!product) {
         Toast.error('Product not found');
         return;
     }
 
     // Check input tables
-    const inputTables = db.getInputTablesByCategory(AppState.currentCategory?.id);
+    const inputTables = await db.getInputTablesByCategory(AppState.currentCategory?.id);
     if (inputTables && inputTables.length > 0) {
         const missingInputs = inputTables.filter(input => !AppState.inputValues[input.name]?.trim());
         if (missingInputs.length > 0) {
@@ -492,26 +511,26 @@ function selectProduct(productId) {
     openProductModal(product);
 }
 
-function loadCategoryBanner(categoryId) {
-    const banners = db.getBannersType2(categoryId);
+async function loadCategoryBanner(categoryId) {
+    const banners = await db.getBannersType2(categoryId);
     const bannerSection = document.getElementById('category-banner-section');
     const guideSection = document.getElementById('category-guide');
 
     if (bannerSection) {
-        if (banners && banners.length > 0 && banners[0].imageUrl) {
+        if (banners && banners.length > 0 && banners[0].image_url) {
             bannerSection.classList.remove('hidden');
-            bannerSection.innerHTML = `<img src="${banners[0].imageUrl}" alt="Banner" style="width:100%;border-radius:var(--radius-lg);">`;
+            bannerSection.innerHTML = `<img src="${banners[0].image_url}" alt="Banner" style="width:100%;border-radius:var(--radius-lg);">`;
         } else {
             bannerSection.classList.add('hidden');
         }
     }
 
     if (guideSection) {
-        if (banners && banners.length > 0 && banners[0].guideText) {
+        if (banners && banners.length > 0 && banners[0].guide_text) {
             guideSection.classList.remove('hidden');
             guideSection.innerHTML = `
                 <h3><i class="fas fa-info-circle"></i> Instructions</h3>
-                <p>${parseText(banners[0].guideText)}</p>
+                <p>${parseText(banners[0].guide_text)}</p>
             `;
         } else {
             guideSection.classList.add('hidden');
@@ -533,7 +552,7 @@ function openProductModal(product) {
     const defaultIcon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%238B5CF6" width="100" height="100" rx="15"/></svg>';
 
     document.getElementById('product-modal-title').textContent = 'Order Details';
-    document.getElementById('product-modal-icon').src = product.iconUrl || defaultIcon;
+    document.getElementById('product-modal-icon').src = product.icon_url || defaultIcon;
     document.getElementById('product-modal-name').textContent = product.name;
     
     const originalPriceEl = document.getElementById('product-original-price');
@@ -552,7 +571,7 @@ function openProductModal(product) {
 
     const deliveryTimeEl = document.getElementById('product-delivery-time');
     if (deliveryTimeEl) {
-        deliveryTimeEl.innerHTML = `<i class="fas fa-bolt"></i> ${product.deliveryType === 'instant' ? 'အမြန်ရသည်' : product.deliveryTime || 'Processing'}`;
+        deliveryTimeEl.innerHTML = `<i class="fas fa-bolt"></i> ${product.delivery_type === 'instant' ? 'အမြန်ရသည်' : product.delivery_time || 'Processing'}`;
     }
 
     // Order summary
@@ -618,7 +637,7 @@ function openVerificationModal() {
     if (modal) modal.classList.remove('hidden');
 
     const user = AppState.currentUser;
-    const code = VerificationManager.generateCode(user.telegramId);
+    const code = VerificationManager.generateCode(user.telegram_id);
 
     TelegramBot.sendVerificationCode(user.telegramId, code);
     TelegramManager.haptic('notification', 'success');
@@ -631,7 +650,7 @@ function cancelVerification() {
     const codeInput = document.getElementById('verification-code');
     if (codeInput) codeInput.value = '';
     
-    VerificationManager.clearCode(AppState.currentUser?.telegramId);
+    VerificationManager.clearCode(AppState.currentUser?.telegram_id);
 }
 
 async function verifyPayment() {
@@ -647,7 +666,7 @@ async function verifyPayment() {
 
     Loading.show('Verifying...');
 
-    const verification = VerificationManager.verifyCode(user.telegramId, inputCode);
+    const verification = VerificationManager.verifyCode(user.telegram_id, inputCode);
 
     if (!verification.valid) {
         Loading.hide();
@@ -661,34 +680,34 @@ async function verifyPayment() {
         const finalPrice = hasDiscount ? calculateDiscount(product.price, product.discount) : product.price;
 
         // Deduct balance
-        await db.updateUserBalance(user.telegramId, finalPrice, 'subtract');
+        await db.updateUserBalance(user.telegram_id, finalPrice, 'subtract');
 
         // Create order
         const order = await db.addOrder({
-            userId: user.telegramId,
+            userId: user.telegram_id,
             userInfo: {
-                firstName: user.firstName,
-                lastName: user.lastName,
+                firstName: user.first_name,
+                lastName: user.last_name,
                 username: user.username
             },
             productId: product.id,
             productInfo: {
                 name: product.name,
-                iconUrl: product.iconUrl
+                iconUrl: product.icon_url
             },
-            categoryId: product.categoryId,
+            categoryId: product.id,
             inputValues: AppState.inputValues,
             amount: finalPrice,
             currency: product.currency
         });
 
         // Update user stats
-        await db.updateUser(user.telegramId, {
-            totalOrders: (user.totalOrders || 0) + 1
+        await db.updateUser(user.telegram_id, {
+            totalOrders: (user.total_orders || 0) + 1
         });
 
         // Reload user
-        AppState.currentUser = db.getUser(user.telegramId);
+        AppState.currentUser = await db.getUser(user.telegram_id);
 
         // Notify admin
         TelegramBot.sendOrderNotification(order, AppState.currentUser);
@@ -700,7 +719,7 @@ async function verifyPayment() {
         Toast.success('Order placed successfully!');
         TelegramManager.haptic('notification', 'success');
 
-        updateUserUI();
+        await updateUserUI();
 
         setTimeout(() => {
             showHomePage();
@@ -789,14 +808,14 @@ function showHistoryPage() {
     TelegramManager.showBackButton(() => navigateTo('home'));
 }
 
-function loadHistoryTab(tab) {
+async function loadHistoryTab(tab) {
     const list = document.getElementById('history-list');
     if (!list) return;
 
     const user = AppState.currentUser;
 
     if (tab === 'deposits') {
-        const topups = db.getTopupRequestsByUser(user?.telegramId);
+        const topups = await db.getTopupRequestsByUser(user?.telegram_id);
         
         if (!topups || topups.length === 0) {
             list.innerHTML = `
@@ -807,19 +826,19 @@ function loadHistoryTab(tab) {
                 </div>
             `;
         } else {
-            list.innerHTML = topups.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(topup => `
+            list.innerHTML = topups.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(topup => `
                 <div class="history-item">
                     <div class="history-icon deposit"><i class="fas fa-arrow-down"></i></div>
                     <div class="history-info">
-                        <h4>Deposit - ${topup.paymentInfo?.name || 'Payment'}</h4>
-                        <p>${formatRelativeTime(topup.createdAt)} · ${topup.status}</p>
+                        <h4>Deposit - ${topup.payment_info?.name || 'Payment'}</h4>
+                        <p>${formatRelativeTime(topup.created_at)} · ${topup.status}</p>
                     </div>
                     <span class="history-amount ${topup.status === 'approved' ? 'positive' : ''}">${topup.status === 'approved' ? '+' : ''}${formatCurrency(topup.amount)}</span>
                 </div>
             `).join('');
         }
     } else {
-        const orders = db.getOrdersByUser(user?.telegramId);
+        const orders = await db.getOrdersByUser(user?.telegram_id);
         
         if (!orders || orders.length === 0) {
             list.innerHTML = `
@@ -830,12 +849,12 @@ function loadHistoryTab(tab) {
                 </div>
             `;
         } else {
-            list.innerHTML = orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(order => `
+            list.innerHTML = orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => `
                 <div class="history-item">
                     <div class="history-icon purchase"><i class="fas fa-shopping-cart"></i></div>
                     <div class="history-info">
-                        <h4>${order.productInfo?.name || 'Product'}</h4>
-                        <p>${formatRelativeTime(order.createdAt)} · ${order.status}</p>
+                        <h4>${order.product_info?.name || 'Product'}</h4>
+                        <p>${formatRelativeTime(order.created_at)} · ${order.status}</p>
                     </div>
                     <span class="history-amount negative">-${formatCurrency(order.amount, order.currency)}</span>
                 </div>
@@ -868,11 +887,11 @@ function showProfilePage() {
     const memberSince = document.getElementById('member-since');
 
     if (profileAvatar) profileAvatar.src = getAvatarUrl(user);
-    if (profileName) profileName.textContent = `${user?.firstName || 'User'} ${user?.lastName || ''}`.trim();
+    if (profileName) profileName.textContent = `${user?.first_name || 'User'} ${user?.last_name || ''}`.trim();
     if (profileUsername) profileUsername.textContent = user?.username ? `@${user.username}` : 'No username';
-    if (totalOrders) totalOrders.textContent = formatNumber(user?.totalOrders || 0);
-    if (totalSpent) totalSpent.textContent = formatNumber(user?.totalSpent || 0);
-    if (memberSince) memberSince.textContent = user?.createdAt ? formatDate(user.createdAt, 'short') : '-';
+    if (totalOrders) totalOrders.textContent = formatNumber(user?.total_orders || 0);
+    if (totalSpent) totalSpent.textContent = formatNumber(user?.total_spent || 0);
+    if (memberSince) memberSince.textContent = user?.created_at ? formatDate(user.created_at, 'short') : '-';
 
     TelegramManager.showBackButton(() => navigateTo('home'));
 }
@@ -1007,16 +1026,16 @@ async function submitTopup() {
         const receiptBase64 = await fileToBase64(receiptFile);
 
         const request = await db.addTopupRequest({
-            userId: user.telegramId,
+            userId: user.telegram_id,
             userInfo: {
-                firstName: user.firstName,
-                lastName: user.lastName,
+                firstName: user.first_name,
+                lastName: user.last_name,
                 username: user.username
             },
             paymentMethodId: payment.id,
             paymentInfo: {
                 name: payment.name,
-                iconUrl: payment.iconUrl
+                iconUrl: payment.icon_url
             },
             amount,
             receiptUrl: receiptBase64
