@@ -6,6 +6,8 @@
 const tg = window.Telegram?.WebApp;
 
 // Note: CONFIG and formatCurrency are defined in utils.js
+const CONFIG = window.CONFIG; // Declare CONFIG
+const formatCurrency = window.formatCurrency; // Declare formatCurrency
 
 // ========================================
 // Telegram Manager
@@ -16,35 +18,44 @@ const TelegramManager = {
     isReady: false,
 
     init() {
-        console.log('Initializing Telegram WebApp...');
+        console.log('[v0] Initializing Telegram WebApp...');
         
         this.webApp = window.Telegram?.WebApp;
+        console.log('[v0] Telegram object:', this.webApp ? 'Available' : 'Not available');
         
         if (!this.webApp) {
-            console.error('Telegram WebApp not available');
+            console.error('[v0] Telegram WebApp not available');
             return false;
         }
 
         // Expand to full height
-        this.webApp.expand();
-        this.webApp.enableClosingConfirmation();
+        try {
+            this.webApp.expand();
+            console.log('[v0] WebApp expanded');
+            this.webApp.enableClosingConfirmation();
+            console.log('[v0] Closing confirmation enabled');
+        } catch (e) {
+            console.log('[v0] Error expanding WebApp:', e);
+        }
 
         // Get user data
         this.user = this.webApp.initDataUnsafe?.user || null;
         
-        console.log('Telegram User:', this.user);
-        console.log('Init Data:', this.webApp.initData);
+        console.log('[v0] Telegram User:', this.user);
+        console.log('[v0] Init Data available:', !!this.webApp.initData);
 
         // Set colors
         try {
             this.webApp.setHeaderColor('#1E293B');
             this.webApp.setBackgroundColor('#0F172A');
+            console.log('[v0] Colors set');
         } catch (e) {
-            console.log('Could not set colors');
+            console.log('[v0] Could not set colors:', e);
         }
 
         this.isReady = true;
         this.webApp.ready();
+        console.log('[v0] WebApp ready called');
 
         return true;
     },
