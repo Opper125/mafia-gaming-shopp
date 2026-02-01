@@ -1,3 +1,21 @@
+import { Toast } from "@/components/ui/toast"
+import { TelegramManager } from "@/components/telegram-manager"
+import { CONFIG } from "@/config"
+import { isAdmin } from "@/utils"
+import { Loading } from "@/components/loading"
+import { db } from "@/database"
+import { Session } from "@/session"
+import { fileToBase64 } from "@/utils/file-to-base64"
+import { formatNumber } from "@/utils/format-number"
+import { getAvatarUrl } from "@/utils/get-avatar-url"
+import { formatCurrency } from "@/utils/format-currency"
+import { debounce } from "@/utils/debounce"
+import { formatRelativeTime } from "@/utils/format-relative-time"
+import { TelegramBot } from "@/components/telegram-bot"
+import { sleep } from "@/utils/sleep"
+import { calculateDiscount } from "@/utils/calculate-discount"
+import { formatDate } from "@/utils/format-date"
+
 /* ========================================
    Gaming Top-up Shop - Admin Panel
    ======================================== */
@@ -282,7 +300,7 @@ async function loadDashboardData() {
     try {
         await db.load();
 
-        const stats = db.getStats();
+        const stats = await db.getStats();
 
         // Update stats
         const totalUsersEl = document.getElementById('total-users');
@@ -310,8 +328,9 @@ async function loadDashboardData() {
     }
 }
 
-function loadRecentOrders() {
-    const orders = db.getOrders().slice(-5).reverse();
+async function loadRecentOrders() {
+    const allOrders = await db.getOrders();
+    const orders = allOrders.slice(-5).reverse();
     const list = document.getElementById('recent-orders-list');
 
     if (!list) return;
@@ -321,14 +340,18 @@ function loadRecentOrders() {
         return;
     }
 
-    list.innerHTML = orders.map(order => {
-        const user = db.getUser(order.userId);
+    const orderList = await Promise.all(orders.map(async (order) => {
+        const user = await db.getUser(order.user_id);
+        return { order, user };
+    }));
+
+    list.innerHTML = orderList.map(({ order, user }) => {
         return `
             <div class="recent-item">
                 <img src="${getAvatarUrl(user)}" alt="User" class="recent-item-avatar">
                 <div class="recent-item-info">
-                    <h4>${user?.firstName || 'User'}</h4>
-                    <p>${order.productInfo?.name || 'Product'}</p>
+                    <h4>${user?.first_name || 'User'}</h4>
+                    <p>${order.product_info?.name || 'Product'}</p>
                 </div>
                 <span class="recent-item-status ${order.status}">${order.status}</span>
                 <span class="recent-item-amount">${formatCurrency(order.amount)}</span>
@@ -337,8 +360,8 @@ function loadRecentOrders() {
     }).join('');
 }
 
-function loadPendingTopupsDashboard() {
-    const topups = db.getPendingTopupRequests();
+async function loadPendingTopupsDashboard() {
+    const topups = await db.getPendingTopupRequests();
     const list = document.getElementById('pending-topups-list');
 
     if (!list) return;
@@ -348,14 +371,18 @@ function loadPendingTopupsDashboard() {
         return;
     }
 
-    list.innerHTML = topups.slice(0, 5).map(topup => {
-        const user = db.getUser(topup.userId);
+    const topupList = await Promise.all(topups.slice(0, 5).map(async (topup) => {
+        const user = await db.getUser(topup.user_id);
+        return { topup, user };
+    }));
+
+    list.innerHTML = topupList.map(({ topup, user }) => {
         return `
             <div class="recent-item">
                 <img src="${getAvatarUrl(user)}" alt="User" class="recent-item-avatar">
                 <div class="recent-item-info">
-                    <h4>${user?.firstName || 'User'}</h4>
-                    <p>${topup.paymentInfo?.name || 'Payment'}</p>
+                    <h4>${user?.first_name || 'User'}</h4>
+                    <p>${topup.payment_info?.name || 'Payment'}</p>
                 </div>
                 <span class="recent-item-status pending">pending</span>
                 <span class="recent-item-amount">${formatCurrency(topup.amount)}</span>
@@ -367,9 +394,10 @@ function loadPendingTopupsDashboard() {
 // ========================================
 // Users
 // ========================================
-function loadUsersData(filter = 'all') {
-    const users = db.getUsers();
-    const bannedIds = db.getBannedUsers().map(b => b.telegramId);
+async function loadUsersData(filter = 'all') {
+    const users = await db.getUsers();
+    const bannedUsers = await db.getBannedUsers();
+    const bannedIds = bannedUsers.map(b => b.telegram_id);
     const list = document.getElementById('users-list');
 
     if (!list) return;
@@ -377,9 +405,9 @@ function loadUsersData(filter = 'all') {
     let filteredUsers = users;
 
     if (filter === 'premium') {
-        filteredUsers = users.filter(u => u.isPremium);
+        filteredUsers = users.filter(u => u.is_premium);
     } else if (filter === 'banned') {
-        filteredUsers = users.filter(u => bannedIds.includes(u.telegramId));
+        filteredUsers = users.filter(u => bannedIds.includes(u.telegram_id));
     }
 
     if (!filteredUsers || filteredUsers.length === 0) {
@@ -393,24 +421,24 @@ function loadUsersData(filter = 'all') {
     }
 
     list.innerHTML = filteredUsers.map(user => {
-        const isBanned = bannedIds.includes(user.telegramId);
+        const isBanned = bannedIds.includes(user.telegram_id);
         return `
-            <div class="user-card" onclick="openUserDetail('${user.telegramId}')">
+            <div class="user-card" onclick="openUserDetail('${user.telegram_id}')">
                 <img src="${getAvatarUrl(user)}" alt="User" class="user-card-avatar">
                 <div class="user-card-info">
                     <h4>
-                        ${user.firstName || 'User'} ${user.lastName || ''}
-                        ${user.isPremium ? '<span class="premium-badge"><i class="fas fa-star"></i></span>' : ''}
+                        ${user.first_name || 'User'} ${user.last_name || ''}
+                        ${user.is_premium ? '<span class="premium-badge"><i class="fas fa-star"></i></span>' : ''}
                         ${isBanned ? '<span style="color: var(--accent-red);"><i class="fas fa-ban"></i></span>' : ''}
                     </h4>
-                    <p>@${user.username || 'N/A'} · ID: ${user.telegramId}</p>
+                    <p>@${user.username || 'N/A'} · ID: ${user.telegram_id}</p>
                 </div>
                 <div class="user-card-balance">
                     <span>${formatCurrency(user.balance || 0)}</span>
-                    <small>${user.totalOrders || 0} orders</small>
+                    <small>${user.total_orders || 0} orders</small>
                 </div>
                 <div class="user-card-actions">
-                    <button onclick="event.stopPropagation(); ${isBanned ? `unbanUser('${user.telegramId}')` : `banUser('${user.telegramId}')`}">
+                    <button onclick="event.stopPropagation(); ${isBanned ? `unbanUser('${user.telegram_id}')` : `banUser('${user.telegram_id}')`}">
                         <i class="fas fa-${isBanned ? 'unlock' : 'ban'}"></i>
                     </button>
                 </div>
@@ -440,12 +468,12 @@ function loadUsersData(filter = 'all') {
     }
 }
 
-function openUserDetail(telegramId) {
-    const user = db.getUser(telegramId);
+async function openUserDetail(telegramId) {
+    const user = await db.getUser(telegramId);
     if (!user) return;
 
-    const orders = db.getOrdersByUser(telegramId);
-    const topups = db.getTopupRequestsByUser(telegramId);
+    const orders = await db.getOrdersByUser(telegramId);
+    const topups = await db.getTopupRequestsByUser(telegramId);
 
     const modal = document.getElementById('user-detail-modal');
     const content = document.getElementById('user-detail-content');
@@ -456,8 +484,8 @@ function openUserDetail(telegramId) {
         <div class="user-detail-header">
             <img src="${getAvatarUrl(user)}" alt="User">
             <div class="user-detail-header-info">
-                <h3>${user.firstName || 'User'} ${user.lastName || ''} ${user.isPremium ? '⭐' : ''}</h3>
-                <p>@${user.username || 'N/A'} · ID: ${user.telegramId}</p>
+                <h3>${user.first_name || 'User'} ${user.last_name || ''} ${user.is_premium ? '⭐' : ''}</h3>
+                <p>@${user.username || 'N/A'} · ID: ${user.telegram_id}</p>
             </div>
         </div>
 
@@ -467,11 +495,11 @@ function openUserDetail(telegramId) {
                 <label>Balance</label>
             </div>
             <div class="user-detail-stat">
-                <span>${user.totalOrders || 0}</span>
+                <span>${user.total_orders || 0}</span>
                 <label>Orders</label>
             </div>
             <div class="user-detail-stat">
-                <span>${formatCurrency(user.totalSpent || 0)}</span>
+                <span>${formatCurrency(user.total_spent || 0)}</span>
                 <label>Spent</label>
             </div>
         </div>
@@ -482,8 +510,8 @@ function openUserDetail(telegramId) {
                 ${orders.slice(-5).reverse().map(order => `
                     <div class="user-detail-list-item">
                         <div class="user-detail-list-item-info">
-                            <h5>${order.productInfo?.name || 'Product'}</h5>
-                            <p>${formatRelativeTime(order.createdAt)} · ${order.status}</p>
+                            <h5>${order.product_info?.name || 'Product'}</h5>
+                            <p>${formatRelativeTime(order.created_at)} · ${order.status}</p>
                         </div>
                         <span class="user-detail-list-item-amount negative">-${formatCurrency(order.amount)}</span>
                     </div>
@@ -497,8 +525,8 @@ function openUserDetail(telegramId) {
                 ${topups.slice(-5).reverse().map(topup => `
                     <div class="user-detail-list-item">
                         <div class="user-detail-list-item-info">
-                            <h5>${topup.paymentInfo?.name || 'Payment'}</h5>
-                            <p>${formatRelativeTime(topup.createdAt)} · ${topup.status}</p>
+                            <h5>${topup.payment_info?.name || 'Payment'}</h5>
+                            <p>${formatRelativeTime(topup.created_at)} · ${topup.status}</p>
                         </div>
                         <span class="user-detail-list-item-amount ${topup.status === 'approved' ? 'positive' : ''}">
                             ${topup.status === 'approved' ? '+' : ''}${formatCurrency(topup.amount)}
