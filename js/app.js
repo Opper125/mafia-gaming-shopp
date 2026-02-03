@@ -726,7 +726,7 @@ async function verifyPayment() {
 // ========================================
 // Orders Page
 // ========================================
-function showOrdersPage() {
+async function showOrdersPage() {
     console.log('Showing orders page');
     
     const page = document.getElementById('orders-page');
@@ -738,9 +738,9 @@ function showOrdersPage() {
     document.getElementById('main-app').classList.add('hidden');
     page.classList.remove('hidden');
 
-    const orders = db.getOrdersByUser(AppState.currentUser?.telegramId);
+    const orders = await db.getOrdersByUser(AppState.currentUser?.telegram_id);
 
-    if (!orders || orders.length === 0) {
+    if (!Array.isArray(orders) || orders.length === 0) {
         list.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon"><i class="fas fa-shopping-bag"></i></div>
@@ -749,17 +749,18 @@ function showOrdersPage() {
             </div>
         `;
     } else {
-        list.innerHTML = orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(order => `
+        const sortedOrders = orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        list.innerHTML = sortedOrders.map(order => `
             <div class="order-card">
                 <div class="order-header">
                     <span class="order-id">#${order.id}</span>
                     <span class="order-status ${order.status}">${order.status}</span>
                 </div>
                 <div class="order-details">
-                    <img src="${order.productInfo?.iconUrl || ''}" alt="${order.productInfo?.name}">
+                    <img src="${order.product_info?.icon_url || ''}" alt="${order.product_info?.name}">
                     <div class="order-info">
-                        <h4>${order.productInfo?.name || 'Product'}</h4>
-                        <p>${formatRelativeTime(order.createdAt)}</p>
+                        <h4>${order.product_info?.name || 'Product'}</h4>
+                        <p>${formatRelativeTime(order.created_at)}</p>
                     </div>
                     <span class="order-price">${formatCurrency(order.amount, order.currency)}</span>
                 </div>
@@ -816,7 +817,8 @@ async function loadHistoryTab(tab) {
                 </div>
             `;
         } else {
-            list.innerHTML = topups.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(topup => `
+            const sortedTopups = Array.isArray(topups) ? topups.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) : [];
+            list.innerHTML = sortedTopups.map(topup => `
                 <div class="history-item">
                     <div class="history-icon deposit"><i class="fas fa-arrow-down"></i></div>
                     <div class="history-info">
@@ -830,7 +832,7 @@ async function loadHistoryTab(tab) {
     } else {
         const orders = await db.getOrdersByUser(user?.telegram_id);
         
-        if (!orders || orders.length === 0) {
+        if (!Array.isArray(orders) || orders.length === 0) {
             list.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon"><i class="fas fa-shopping-cart"></i></div>
@@ -839,7 +841,8 @@ async function loadHistoryTab(tab) {
                 </div>
             `;
         } else {
-            list.innerHTML = orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => `
+            const sortedOrders = orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            list.innerHTML = sortedOrders.map(order => `
                 <div class="history-item">
                     <div class="history-icon purchase"><i class="fas fa-shopping-cart"></i></div>
                     <div class="history-info">
