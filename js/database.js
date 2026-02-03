@@ -39,49 +39,24 @@ class Database {
     }
 
     async init() {
-        console.log('[v0] Initializing Supabase database...');
-        console.log('[v0] Supabase URL:', this.supabaseUrl);
-        
-        try {
-            // Test connection by fetching settings
-            const response = await fetch(`${this.supabaseUrl}/rest/v1/settings?limit=1`, {
-                method: 'GET',
-                headers: {
-                    'apikey': this.supabaseKey,
-                    'Authorization': `Bearer ${this.supabaseKey}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Supabase connection failed: ${response.status} ${response.statusText}`);
-            }
-
-            console.log('[v0] Supabase connection successful');
-            return true;
-        } catch (error) {
-            console.error('[v0] Database init error:', error);
-            // Don't return false - allow app to continue with fallback
-            return true;
-        }
+        console.log('[v0] Initializing database');
+        return true;
     }
 
     async makeRequest(table, method = 'GET', data = null, filters = {}) {
         try {
             let url = `${this.supabaseUrl}/rest/v1/${table}`;
             
-            // Add filters
-            const filterParams = new URLSearchParams();
+            // Add filters using proper query string format
+            const queryParams = [];
             Object.entries(filters).forEach(([key, value]) => {
                 if (value !== null && value !== undefined) {
-                    filterParams.append(`${key}=eq.${encodeURIComponent(value)}`);
+                    queryParams.push(`${key}=eq.${encodeURIComponent(value)}`);
                 }
             });
-            if (filterParams.toString()) {
-                url += `?${filterParams.toString()}`;
+            if (queryParams.length > 0) {
+                url += `?${queryParams.join('&')}`;
             }
-
-            console.log('[v0] Making request to:', table, 'Method:', method);
 
             const options = {
                 method,
@@ -100,17 +75,14 @@ class Database {
             const response = await fetch(url, options);
             
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`[v0] API Error ${response.status}:`, errorText);
-                throw new Error(`API Error: ${response.status} ${errorText}`);
+                console.error(`[v0] API Error ${response.status} for ${table}`);
+                return [];
             }
 
             const result = await response.json();
-            console.log('[v0] Request successful for:', table, 'Result:', result?.length || 'N/A');
-            return result;
+            return Array.isArray(result) ? result : [];
         } catch (error) {
-            console.error(`[v0] Database request error for ${table}:`, error);
-            // Return empty array instead of throwing to prevent app crash
+            console.error(`[v0] Database error for ${table}:`, error.message);
             return [];
         }
     }
@@ -172,7 +144,10 @@ class Database {
     async getUser(telegramId) {
         try {
             const result = await this.makeRequest('users', 'GET', null, { telegram_id: telegramId });
-            return result && result.length > 0 ? result[0] : null;
+            if (Array.isArray(result) && result.length > 0) {
+                return result[0];
+            }
+            return null;
         } catch (error) {
             console.error('Error fetching user:', error);
             return null;
@@ -860,13 +835,19 @@ class Database {
         }
     }
 
-    isUserBanned(telegramId) {
-        return this.getBannedUsers().some(b => String(b.telegram_id) === String(telegramId));
+    async isUserBanned(telegramId) {
+        try {
+            const bannedUsers = await this.getBannedUsers();
+            return Array.isArray(bannedUsers) && bannedUsers.some(b => String(b.telegram_id) === String(telegramId));
+        } catch (error) {
+            console.error('Error checking banned status:', error);
+            return false;
+        }
     }
 
     async banUser(telegramId, reason = '') {
         try {
-            const isBanned = this.isUserBanned(telegramId);
+            const isBanned = await this.isUserBanned(telegramId);
             if (isBanned) return false;
 
             const user = await this.getUser(telegramId);
@@ -903,14 +884,19 @@ class Database {
             const topups = await this.getTopupRequests();
             const bannedUsers = await this.getBannedUsers();
 
+            const usersArray = Array.isArray(users) ? users : [];
+            const ordersArray = Array.isArray(orders) ? orders : [];
+            const topupsArray = Array.isArray(topups) ? topups : [];
+            const bannedArray = Array.isArray(bannedUsers) ? bannedUsers : [];
+
             return {
-                totalUsers: users.length,
-                totalOrders: orders.length,
-                pendingOrders: orders.filter(o => o.status === 'pending').length,
-                approvedOrders: orders.filter(o => o.status === 'approved').length,
-                totalRevenue: orders.filter(o => o.status === 'approved').reduce((sum, o) => sum + o.amount, 0),
-                pendingTopups: topups.filter(t => t.status === 'pending').length,
-                bannedUsers: bannedUsers.length
+                totalUsers: usersArray.length,
+                totalOrders: ordersArray.length,
+                pendingOrders: ordersArray.filter(o => o.status === 'pending').length,
+                approvedOrders: ordersArray.filter(o => o.status === 'approved').length,
+                totalRevenue: ordersArray.filter(o => o.status === 'approved').reduce((sum, o) => sum + (o.amount || 0), 0),
+                pendingTopups: topupsArray.filter(t => t.status === 'pending').length,
+                bannedUsers: bannedArray.length
             };
         } catch (error) {
             console.error('Error fetching stats:', error);
