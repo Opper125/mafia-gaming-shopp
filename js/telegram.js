@@ -15,12 +15,15 @@ const TelegramManager = {
 
     init() {
         console.log('[v0] Initializing Telegram WebApp...');
+        console.log('[v0] window.Telegram:', typeof window.Telegram);
         
         this.webApp = window.Telegram?.WebApp;
-        console.log('[v0] Telegram object:', this.webApp ? 'Available' : 'Not available');
+        console.log('[v0] Telegram WebApp object:', this.webApp ? 'Available' : 'Not available');
         
         if (!this.webApp) {
-            console.error('[v0] Telegram WebApp not available');
+            console.warn('[v0] Telegram WebApp not available - testing/browser mode');
+            // Allow app to continue in test mode for browser testing
+            this.isReady = false;
             return false;
         }
 
@@ -28,40 +31,61 @@ const TelegramManager = {
         try {
             this.webApp.expand();
             console.log('[v0] WebApp expanded');
+        } catch (e) {
+            console.log('[v0] Could not expand WebApp:', e.message);
+        }
+
+        // Enable closing confirmation
+        try {
             this.webApp.enableClosingConfirmation();
             console.log('[v0] Closing confirmation enabled');
         } catch (e) {
-            console.log('[v0] Error expanding WebApp:', e);
+            console.log('[v0] Could not enable closing confirmation:', e.message);
         }
 
-        // Get user data
+        // Get user data from Telegram
         this.user = this.webApp.initDataUnsafe?.user || null;
-        
-        console.log('[v0] Telegram User:', this.user);
-        console.log('[v0] Init Data available:', !!this.webApp.initData);
+        console.log('[v0] Telegram User data:', this.user);
+        console.log('[v0] User ID:', this.user?.id);
+        console.log('[v0] User name:', this.user?.first_name);
 
-        // Set colors
+        // Set theme colors if available
         try {
-            this.webApp.setHeaderColor('#1E293B');
-            this.webApp.setBackgroundColor('#0F172A');
-            console.log('[v0] Colors set');
+            if (this.webApp.setHeaderColor) {
+                this.webApp.setHeaderColor('#1E293B');
+            }
+            if (this.webApp.setBackgroundColor) {
+                this.webApp.setBackgroundColor('#0F172A');
+            }
+            console.log('[v0] Theme colors set');
         } catch (e) {
-            console.log('[v0] Could not set colors:', e);
+            console.log('[v0] Could not set theme colors:', e.message);
         }
 
+        // Mark as ready and signal to Telegram
         this.isReady = true;
-        this.webApp.ready();
-        console.log('[v0] WebApp ready called');
+        try {
+            this.webApp.ready();
+            console.log('[v0] WebApp ready signal sent to Telegram');
+        } catch (e) {
+            console.log('[v0] Could not send ready signal:', e.message);
+        }
 
+        console.log('[v0] Telegram initialization complete');
         return true;
     },
 
     isInTelegram() {
-        // Check if running inside Telegram
-        if (!this.webApp) return false;
-        if (!this.webApp.initData) return false;
-        if (this.webApp.initData.length === 0) return false;
-        return true;
+        // Check if running inside Telegram Mini App
+        console.log('[v0] Checking if in Telegram...');
+        console.log('[v0] window.Telegram exists:', !!window.Telegram);
+        console.log('[v0] this.webApp exists:', !!this.webApp);
+        
+        // Simple check: if window.Telegram exists, we're in Telegram
+        const inTelegram = !!(window.Telegram && window.Telegram.WebApp);
+        console.log('[v0] In Telegram result:', inTelegram);
+        
+        return inTelegram;
     },
 
     getUser() {
