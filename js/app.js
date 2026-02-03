@@ -27,22 +27,44 @@ async function initApp() {
         // Initialize Telegram
         console.log('[v0] Initializing Telegram...');
         const telegramReady = TelegramManager.init();
-        console.log('[v0] Telegram ready:', telegramReady);
+        console.log('[v0] Telegram WebApp ready:', telegramReady);
 
-        // Check if in Telegram
-        if (!TelegramManager.isInTelegram()) {
-            console.log('[v0] Not in Telegram, showing access denied');
-            showAccessDenied();
-            return;
+        // Check if in Telegram Mini App
+        const isInTelegram = TelegramManager.isInTelegram();
+        console.log('[v0] Running in Telegram Mini App:', isInTelegram);
+
+        if (!isInTelegram) {
+            console.warn('[v0] Not running in Telegram Mini App');
+            // Only show access denied if we're definitely NOT in Telegram (not just in browser for testing)
+            if (window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1')) {
+                // Production URL should only work in Telegram
+                console.log('[v0] Blocking non-Telegram access on production');
+                showAccessDenied();
+                return;
+            }
+            console.log('[v0] Allowing browser/localhost testing mode');
         }
 
         // Get Telegram user
         console.log('[v0] Getting Telegram user...');
-        const telegramUser = TelegramManager.getUser();
-        console.log('[v0] Telegram User:', telegramUser);
+        let telegramUser = TelegramManager.getUser();
+        console.log('[v0] Telegram User data:', telegramUser);
+
+        // Create test user if in development/browser mode
+        if (!telegramUser && !isInTelegram) {
+            console.log('[v0] No Telegram user, creating test user for development');
+            telegramUser = {
+                id: Math.floor(Math.random() * 1000000000),
+                first_name: 'Test',
+                last_name: 'User',
+                username: 'testuser',
+                is_premium: false
+            };
+            console.log('[v0] Created test user:', telegramUser);
+        }
 
         if (!telegramUser) {
-            console.log('[v0] No Telegram user found');
+            console.error('[v0] No user data available');
             showAccessDenied();
             return;
         }
