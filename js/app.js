@@ -24,61 +24,35 @@ async function initApp() {
     console.log('[v0] === Initializing App ===');
 
     try {
-        // Initialize Telegram
+        // Initialize Telegram WebApp
         console.log('[v0] Initializing Telegram...');
-        const telegramReady = TelegramManager.init();
-        console.log('[v0] Telegram WebApp ready:', telegramReady);
-
-        // Check if in Telegram Mini App
-        const isInTelegram = TelegramManager.isInTelegram();
-        console.log('[v0] Running in Telegram Mini App:', isInTelegram);
-
-        if (!isInTelegram) {
-            console.warn('[v0] Not running in Telegram Mini App');
-            // Only show access denied if we're definitely NOT in Telegram (not just in browser for testing)
-            if (window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1')) {
-                // Production URL should only work in Telegram
-                console.log('[v0] Blocking non-Telegram access on production');
-                showAccessDenied();
-                return;
-            }
-            console.log('[v0] Allowing browser/localhost testing mode');
-        }
-
-        // Get Telegram user
-        console.log('[v0] Getting Telegram user...');
+        TelegramManager.init();
+        
+        // Get user from Telegram
         let telegramUser = TelegramManager.getUser();
-        console.log('[v0] Telegram User data:', telegramUser);
+        console.log('[v0] User from Telegram:', telegramUser);
 
-        // Create test user if in development/browser mode
-        if (!telegramUser && !isInTelegram) {
-            console.log('[v0] No Telegram user, creating test user for development');
+        // If no user, create a default one (shouldn't happen in Mini App)
+        if (!telegramUser) {
+            console.log('[v0] No user from Telegram, using default');
             telegramUser = {
-                id: Math.floor(Math.random() * 1000000000),
-                first_name: 'Test',
-                last_name: 'User',
-                username: 'testuser',
+                id: 0,
+                first_name: 'Guest',
+                last_name: '',
+                username: '',
                 is_premium: false
             };
-            console.log('[v0] Created test user:', telegramUser);
         }
 
-        if (!telegramUser) {
-            console.error('[v0] No user data available');
-            showAccessDenied();
-            return;
-        }
-
-        // Initialize database
-        console.log('[v0] Showing loading screen...');
+        // Show loading
         Loading.show('Loading...');
         
+        // Initialize database
         console.log('[v0] Initializing database...');
         await db.init();
-        console.log('[v0] Database initialized');
 
-        // Register/update user
-        console.log('[v0] Adding/updating user...');
+        // Add user to database
+        console.log('[v0] Adding user to database...');
         AppState.currentUser = await db.addUser({
             telegramId: telegramUser.id,
             username: telegramUser.username || '',
@@ -91,39 +65,28 @@ async function initApp() {
         console.log('[v0] Current User:', AppState.currentUser);
 
         // Check if banned
-        console.log('[v0] Checking if user is banned...');
         const isBanned = await db.isUserBanned(telegramUser.id);
         if (isBanned) {
-            console.log('[v0] User is banned');
             Loading.hide();
             showBannedScreen();
             return;
         }
 
-        console.log('[v0] Hiding loading screen...');
+        // Show main app
         Loading.hide();
-
-        // Hide intro, show main app
-        console.log('[v0] Showing main app...');
         hideIntroShowApp();
 
-        // Update UI
-        console.log('[v0] Updating user UI...');
+        // Load content
         await updateUserUI();
-        
-        console.log('[v0] Loading home page...');
         await loadHomePage();
-        
-        console.log('[v0] Initializing UI...');
         initializeUI();
 
         AppState.isInitialized = true;
-        console.log('[v0] === App Initialized Successfully ===');
+        console.log('[v0] === App Ready ===');
     } catch (error) {
-        console.error('[v0] App initialization error:', error);
+        console.error('[v0] Error:', error);
         Loading.hide();
-        Toast.error('Failed to initialize app. Please refresh.');
-        showAccessDenied();
+        Toast.error('Error loading app');
     }
 }
 
